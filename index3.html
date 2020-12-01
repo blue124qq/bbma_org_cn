@@ -1,0 +1,1261 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="profile" href="https://gmpg.org/xfn/11">
+	<title>xkcd &#8211; The blag of the webcomic</title>
+
+<!-- Async WordPress.com Remote Login -->
+<script id="wpcom_remote_login_js">
+var wpcom_remote_login_extra_auth = '';
+function wpcom_remote_login_remove_dom_node_id( element_id ) {
+	var dom_node = document.getElementById( element_id );
+	if ( dom_node ) { dom_node.parentNode.removeChild( dom_node ); }
+}
+function wpcom_remote_login_remove_dom_node_classes( class_name ) {
+	var dom_nodes = document.querySelectorAll( '.' + class_name );
+	for ( var i = 0; i < dom_nodes.length; i++ ) {
+		dom_nodes[ i ].parentNode.removeChild( dom_nodes[ i ] );
+	}
+}
+function wpcom_remote_login_final_cleanup() {
+	wpcom_remote_login_remove_dom_node_classes( "wpcom_remote_login_msg" );
+	wpcom_remote_login_remove_dom_node_id( "wpcom_remote_login_key" );
+	wpcom_remote_login_remove_dom_node_id( "wpcom_remote_login_validate" );
+	wpcom_remote_login_remove_dom_node_id( "wpcom_remote_login_js" );
+	wpcom_remote_login_remove_dom_node_id( "wpcom_request_access_iframe" );
+	wpcom_remote_login_remove_dom_node_id( "wpcom_request_access_styles" );
+}
+
+// Watch for messages back from the remote login
+window.addEventListener( "message", function( e ) {
+	if ( e.origin === "https://r-login.wordpress.com" ) {
+		var data = {};
+		try {
+			data = JSON.parse( e.data );
+		} catch( e ) {
+			wpcom_remote_login_final_cleanup();
+			return;
+		}
+
+		if ( data.msg === 'LOGIN' ) {
+			// Clean up the login check iframe
+			wpcom_remote_login_remove_dom_node_id( "wpcom_remote_login_key" );
+
+			var id_regex = new RegExp( /^[0-9]+$/ );
+			var token_regex = new RegExp( /^.*|.*|.*$/ );
+			if (
+				token_regex.test( data.token )
+				&& id_regex.test( data.wpcomid )
+			) {
+				// We have everything we need to ask for a login
+				var script = document.createElement( "script" );
+				script.setAttribute( "id", "wpcom_remote_login_validate" );
+				script.src = '/remote-login.php?wpcom_remote_login=validate'
+					+ '&wpcomid=' + data.wpcomid
+					+ '&token=' + encodeURIComponent( data.token )
+					+ '&host=' + window.location.protocol
+						+ '//' + window.location.hostname;
+				document.body.appendChild( script );
+			}
+
+			return;
+		}
+
+		// Safari ITP, not logged in, so redirect
+		if ( data.msg === 'LOGIN-REDIRECT' ) {
+			window.location = 'https://wordpress.com/log-in?redirect_to=' + window.location.href;
+			return;
+		}
+
+		// Safari ITP, storage access failed, remove the request
+		if ( data.msg === 'LOGIN-REMOVE' ) {
+			var css_zap = 'html { -webkit-transition: margin-top 1s; transition: margin-top 1s; } /* 9001 */ html { margin-top: 0 !important; } * html body { margin-top: 0 !important; } @media screen and ( max-width: 782px ) { html { margin-top: 0 !important; } * html body { margin-top: 0 !important; } }';
+			var style_zap = document.createElement( 'style' );
+			style_zap.type = 'text/css';
+			style_zap.appendChild( document.createTextNode( css_zap ) );
+			document.body.appendChild( style_zap );
+
+			var e = document.getElementById( 'wpcom_request_access_iframe' );
+			e.parentNode.removeChild( e );
+
+			document.cookie = 'wordpress_com_login_access=denied; path=/; max-age=31536000';
+
+			return;
+		}
+
+		// Safari ITP
+		if ( data.msg === 'REQUEST_ACCESS' ) {
+			console.log( 'request access: safari' );
+
+			// Check ITP iframe enable/disable knob
+			if ( wpcom_remote_login_extra_auth !== 'safari_itp_iframe' ) {
+				return;
+			}
+
+			// If we are in a "private window" there is no ITP.
+			var private_window = false;
+			try {
+				var opendb = window.openDatabase( null, null, null, null );
+			} catch( e ) {
+				private_window = true;
+			}
+
+			if ( private_window ) {
+				console.log( 'private window' );
+				return;
+			}
+
+			var iframe = document.createElement( 'iframe' );
+			iframe.id = 'wpcom_request_access_iframe';
+			iframe.setAttribute( 'scrolling', 'no' );
+			iframe.setAttribute( 'sandbox', 'allow-storage-access-by-user-activation allow-scripts allow-same-origin allow-top-navigation-by-user-activation' );
+			iframe.src = 'https://r-login.wordpress.com/remote-login.php?wpcom_remote_login=request_access&origin=' + encodeURIComponent( data.origin ) + '&wpcomid=' + encodeURIComponent( data.wpcomid );
+
+			var css = 'html { -webkit-transition: margin-top 1s; transition: margin-top 1s; } /* 9001 */ html { margin-top: 46px !important; } * html body { margin-top: 46px !important; } @media screen and ( max-width: 660px ) { html { margin-top: 71px !important; } * html body { margin-top: 71px !important; } #wpcom_request_access_iframe { display: block; height: 71px !important; } } #wpcom_request_access_iframe { border: 0px; height: 46px; position: fixed; top: 0; left: 0; width: 100%; min-width: 100%; z-index: 99999; background: #23282d; } ';
+
+			var style = document.createElement( 'style' );
+			style.type = 'text/css';
+			style.id = 'wpcom_request_access_styles';
+			style.appendChild( document.createTextNode( css ) );
+			document.body.appendChild( style );
+
+			document.body.appendChild( iframe );
+		}
+
+		if ( data.msg === 'DONE' ) {
+			wpcom_remote_login_final_cleanup();
+		}
+	}
+}, false );
+
+// Inject the remote login iframe after the page has had a chance to load
+// more critical resources
+window.addEventListener( "DOMContentLoaded", function( e ) {
+	var iframe = document.createElement( "iframe" );
+	iframe.style.display = "none";
+	iframe.setAttribute( "scrolling", "no" );
+	iframe.setAttribute( "id", "wpcom_remote_login_key" );
+	iframe.src = "https://r-login.wordpress.com/remote-login.php"
+		+ "?wpcom_remote_login=key"
+		+ "&origin=aHR0cHM6Ly9ibG9nLnhrY2QuY29t"
+		+ "&wpcomid=79314890"
+		+ "&time=1606805114";
+	document.body.appendChild( iframe );
+}, false );
+</script>
+
+
+
+
+
+
+	<script type="text/javascript">
+		/* <![CDATA[ */
+		function addLoadEvent(func) {
+			var oldonload = window.onload;
+			if (typeof window.onload != 'function') {
+				window.onload = func;
+			} else {
+				window.onload = function () {
+					oldonload();
+					func();
+				}
+			}
+		}
+		/* ]]> */
+	</script>
+			<script>
+			window._wpemojiSettings = {"baseUrl":"https:\/\/s0.wp.com\/wp-content\/mu-plugins\/wpcom-smileys\/twemoji\/2\/72x72\/","ext":".png","svgUrl":"https:\/\/s0.wp.com\/wp-content\/mu-plugins\/wpcom-smileys\/twemoji\/2\/svg\/","svgExt":".svg","source":{"concatemoji":"https:\/\/s2.wp.com\/wp-includes\/js\/wp-emoji-release.min.js?m=1605528427h&ver=5.6-RC1-49523"}};
+			!function(e,a,t){var r,n,o,i,p=a.createElement("canvas"),s=p.getContext&&p.getContext("2d");function c(e,t){var a=String.fromCharCode;s.clearRect(0,0,p.width,p.height),s.fillText(a.apply(this,e),0,0);var r=p.toDataURL();return s.clearRect(0,0,p.width,p.height),s.fillText(a.apply(this,t),0,0),r===p.toDataURL()}function l(e){if(!s||!s.fillText)return!1;switch(s.textBaseline="top",s.font="600 32px Arial",e){case"flag":return!c([127987,65039,8205,9895,65039],[127987,65039,8203,9895,65039])&&(!c([55356,56826,55356,56819],[55356,56826,8203,55356,56819])&&!c([55356,57332,56128,56423,56128,56418,56128,56421,56128,56430,56128,56423,56128,56447],[55356,57332,8203,56128,56423,8203,56128,56418,8203,56128,56421,8203,56128,56430,8203,56128,56423,8203,56128,56447]));case"emoji":return!c([55357,56424,8205,55356,57212],[55357,56424,8203,55356,57212])}return!1}function d(e){var t=a.createElement("script");t.src=e,t.defer=t.type="text/javascript",a.getElementsByTagName("head")[0].appendChild(t)}for(i=Array("flag","emoji"),t.supports={everything:!0,everythingExceptFlag:!0},o=0;o<i.length;o++)t.supports[i[o]]=l(i[o]),t.supports.everything=t.supports.everything&&t.supports[i[o]],"flag"!==i[o]&&(t.supports.everythingExceptFlag=t.supports.everythingExceptFlag&&t.supports[i[o]]);t.supports.everythingExceptFlag=t.supports.everythingExceptFlag&&!t.supports.flag,t.DOMReady=!1,t.readyCallback=function(){t.DOMReady=!0},t.supports.everything||(n=function(){t.readyCallback()},a.addEventListener?(a.addEventListener("DOMContentLoaded",n,!1),e.addEventListener("load",n,!1)):(e.attachEvent("onload",n),a.attachEvent("onreadystatechange",function(){"complete"===a.readyState&&t.readyCallback()})),(r=t.source||{}).concatemoji?d(r.concatemoji):r.wpemoji&&r.twemoji&&(d(r.twemoji),d(r.wpemoji)))}(window,document,window._wpemojiSettings);
+		</script>
+		<style>
+img.wp-smiley,
+img.emoji {
+	display: inline !important;
+	border: none !important;
+	box-shadow: none !important;
+	height: 1em !important;
+	width: 1em !important;
+	margin: 0 .07em !important;
+	vertical-align: -0.1em !important;
+	background: none !important;
+	padding: 0 !important;
+}
+</style>
+	<link rel='stylesheet' id='all-css-0-1' href='_static/yes.css' type='text/css' media='all'>
+<style id='wp-block-library-inline-css'>
+.has-text-align-justify {
+	text-align:justify;
+}
+</style>
+<style id='global-styles-inline-css'>
+:root{--wp--preset--color--primary:#0073a8;--wp--preset--color--secondary:#005075;--wp--preset--color--dark-gray:#111;--wp--preset--color--light-gray:#767676;--wp--preset--color--white:#FFF;--wp--preset--gradient--vivid-cyan-blue-to-vivid-purple:linear-gradient(135deg,rgba(6,147,227,1) 0%,rgb(155,81,224) 100%);--wp--preset--gradient--light-green-cyan-to-vivid-green-cyan:linear-gradient(135deg,rgb(122,220,180) 0%,rgb(0,208,130) 100%);--wp--preset--gradient--luminous-vivid-amber-to-luminous-vivid-orange:linear-gradient(135deg,rgba(252,185,0,1) 0%,rgba(255,105,0,1) 100%);--wp--preset--gradient--luminous-vivid-orange-to-vivid-red:linear-gradient(135deg,rgba(255,105,0,1) 0%,rgb(207,46,46) 100%);--wp--preset--gradient--very-light-gray-to-cyan-bluish-gray:linear-gradient(135deg,rgb(238,238,238) 0%,rgb(169,184,195) 100%);--wp--preset--gradient--cool-to-warm-spectrum:linear-gradient(135deg,rgb(74,234,220) 0%,rgb(151,120,209) 20%,rgb(207,42,186) 40%,rgb(238,44,130) 60%,rgb(251,105,98) 80%,rgb(254,248,76) 100%);--wp--preset--gradient--blush-light-purple:linear-gradient(135deg,rgb(255,206,236) 0%,rgb(152,150,240) 100%);--wp--preset--gradient--blush-bordeaux:linear-gradient(135deg,rgb(254,205,165) 0%,rgb(254,45,45) 50%,rgb(107,0,62) 100%);--wp--preset--gradient--luminous-dusk:linear-gradient(135deg,rgb(255,203,112) 0%,rgb(199,81,192) 50%,rgb(65,88,208) 100%);--wp--preset--gradient--pale-ocean:linear-gradient(135deg,rgb(255,245,203) 0%,rgb(182,227,212) 50%,rgb(51,167,181) 100%);--wp--preset--gradient--electric-grass:linear-gradient(135deg,rgb(202,248,128) 0%,rgb(113,206,126) 100%);--wp--preset--gradient--midnight:linear-gradient(135deg,rgb(2,3,129) 0%,rgb(40,116,252) 100%);--wp--preset--font-size--small:19.5px;--wp--preset--font-size--normal:22px;--wp--preset--font-size--large:36.5px;--wp--preset--font-size--huge:49.5px;}.has-primary-color{color:#0073a8;}
+.has-secondary-color{color:#005075;}
+.has-dark-gray-color{color:#111;}
+.has-light-gray-color{color:#767676;}
+.has-white-color{color:#FFF;}
+.has-primary-background-color{background-color:#0073a8;}
+.has-secondary-background-color{background-color:#005075;}
+.has-dark-gray-background-color{background-color:#111;}
+.has-light-gray-background-color{background-color:#767676;}
+.has-white-background-color{background-color:#FFF;}
+.has-vivid-cyan-blue-to-vivid-purple-gradient-background{background:linear-gradient(135deg,rgba(6,147,227,1) 0%,rgb(155,81,224) 100%);}
+.has-light-green-cyan-to-vivid-green-cyan-gradient-background{background:linear-gradient(135deg,rgb(122,220,180) 0%,rgb(0,208,130) 100%);}
+.has-luminous-vivid-amber-to-luminous-vivid-orange-gradient-background{background:linear-gradient(135deg,rgba(252,185,0,1) 0%,rgba(255,105,0,1) 100%);}
+.has-luminous-vivid-orange-to-vivid-red-gradient-background{background:linear-gradient(135deg,rgba(255,105,0,1) 0%,rgb(207,46,46) 100%);}
+.has-very-light-gray-to-cyan-bluish-gray-gradient-background{background:linear-gradient(135deg,rgb(238,238,238) 0%,rgb(169,184,195) 100%);}
+.has-cool-to-warm-spectrum-gradient-background{background:linear-gradient(135deg,rgb(74,234,220) 0%,rgb(151,120,209) 20%,rgb(207,42,186) 40%,rgb(238,44,130) 60%,rgb(251,105,98) 80%,rgb(254,248,76) 100%);}
+.has-blush-light-purple-gradient-background{background:linear-gradient(135deg,rgb(255,206,236) 0%,rgb(152,150,240) 100%);}
+.has-blush-bordeaux-gradient-background{background:linear-gradient(135deg,rgb(254,205,165) 0%,rgb(254,45,45) 50%,rgb(107,0,62) 100%);}
+.has-luminous-dusk-gradient-background{background:linear-gradient(135deg,rgb(255,203,112) 0%,rgb(199,81,192) 50%,rgb(65,88,208) 100%);}
+.has-pale-ocean-gradient-background{background:linear-gradient(135deg,rgb(255,245,203) 0%,rgb(182,227,212) 50%,rgb(51,167,181) 100%);}
+.has-electric-grass-gradient-background{background:linear-gradient(135deg,rgb(202,248,128) 0%,rgb(113,206,126) 100%);}
+.has-midnight-gradient-background{background:linear-gradient(135deg,rgb(2,3,129) 0%,rgb(40,116,252) 100%);}
+.has-small-font-size{font-size:19.5px;}
+.has-normal-font-size{font-size:22px;}
+.has-large-font-size{font-size:36.5px;}
+.has-huge-font-size{font-size:49.5px;}
+
+</style>
+<link rel='stylesheet' id='all-css-2-1' href='wp-content/themes/pub/twentynineteen/style-1585919973h_yes.css' type='text/css' media='all'>
+<link rel='stylesheet' id='print-css-3-1' href='wp-content/themes/pub/twentynineteen/print-1585919973h_yes.css' type='text/css' media='print'>
+<link rel='stylesheet' id='all-css-4-1' href='_static/cssminify.css' type='text/css' media='all'>
+<style id='jetpack-global-styles-frontend-style-inline-css'>
+:root { --font-headings: unset; --font-base: unset; --font-headings-default: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif; --font-base-default: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif;}
+</style>
+<link rel='stylesheet' id='all-css-6-1' href='wp-content/themes/h4/global-1420737423h_yes.css' type='text/css' media='all'>
+<script id='wpcom-actionbar-placeholder-js-extra'>
+var actionbardata = {"siteID":"79314890","siteName":"xkcd","siteURL":"https:\/\/blog.xkcd.com","icon":"<img alt='' src='https:\/\/s2.wp.com\/i\/logo\/wpcom-gray-white.png' class='avatar avatar-50' height='50' width='50' \/>","canManageOptions":"","canCustomizeSite":"","isFollowing":"","themeSlug":"pub\/twentynineteen","signupURL":"https:\/\/wordpress.com\/start\/","loginURL":"https:\/\/wordpress.com\/log-in?redirect_to=https%3A%2F%2Fblog.xkcd.com%2F2019%2F09%2F25%2Fbook-tour-wrap-up%2F&signup_flow=account&domain=blog.xkcd.com","themeURL":"https:\/\/wordpress.com\/theme\/twentynineteen\/","xhrURL":"https:\/\/blog.xkcd.com\/wp-admin\/admin-ajax.php","nonce":"d901b3958a","isSingular":"","isFolded":"","isLoggedIn":"","isMobile":"","subscribeNonce":"<input type=\"hidden\" id=\"_wpnonce\" name=\"_wpnonce\" value=\"91d3349a1d\" \/>","referer":"https:\/\/blog.xkcd.com\/","canFollow":"1","feedID":"8914912","statusMessage":"","customizeLink":"https:\/\/blogdotxkcddotcom.wordpress.com\/wp-admin\/customize.php?url=https%3A%2F%2Fblogdotxkcddotcom.wordpress.com%2F","i18n":{"view":"View site","follow":"Follow","following":"Following","edit":"Edit","login":"Log in","signup":"Sign up","customize":"Customize","report":"Report this content","themeInfo":"Get theme: Twenty Nineteen","shortlink":"Copy shortlink","copied":"Copied","followedText":"New posts from this site will now appear in your <a href=\"https:\/\/wordpress.com\/read\">Reader<\/a>","foldBar":"Collapse this bar","unfoldBar":"Expand this bar","editSubs":"Manage subscriptions","viewReader":"View site in Reader","viewReadPost":"View post in Reader","subscribe":"Sign me up","enterEmail":"Enter your email address","followers":"Join 1,134 other followers","alreadyUser":"Already have a WordPress.com account? <a href=\"https:\/\/wordpress.com\/log-in?redirect_to=https%3A%2F%2Fblog.xkcd.com%2F2019%2F09%2F25%2Fbook-tour-wrap-up%2F&signup_flow=account&domain=blog.xkcd.com\">Log in now.<\/a>","stats":"Stats"}};
+</script>
+<script type='text/javascript' src='_static/1558356653j.js'></script>
+<link rel="EditURI" type="application/rsd+xml" title="RSD" href="https://blogdotxkcddotcom.wordpress.com/xmlrpc.php?rsd">
+<link rel="wlwmanifest" type="application/wlwmanifest+xml" href="https://s1.wp.com/wp-includes/wlwmanifest.xml"> 
+<meta name="generator" content="WordPress.com">
+<link rel='shortlink' href='https://wp.me/5mNqq'>
+
+<!-- Jetpack Open Graph Tags -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="xkcd">
+<meta property="og:description" content="The blag of the webcomic">
+<meta property="og:url" content="https://blog.xkcd.com/">
+<meta property="og:site_name" content="xkcd">
+<meta property="og:image" content="https://s0.wp.com/i/blank.jpg">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:site" content="@wordpressdotcom">
+
+<!-- End Jetpack Open Graph Tags -->
+
+
+
+<link rel='openid.server' href='https://blog.xkcd.com/?openidserver=1'>
+<link rel='openid.delegate' href='https://blog.xkcd.com/'>
+<link rel="search" type="application/opensearchdescription+xml" href="https://blog.xkcd.com/osd.xml" title="xkcd">
+<link rel="search" type="application/opensearchdescription+xml" href="https://s1.wp.com/opensearch.xml" title="WordPress.com">
+		<style type="text/css">
+			.recentcomments a {
+				display: inline !important;
+				padding: 0 !important;
+				margin: 0 !important;
+			}
+
+			table.recentcommentsavatartop img.avatar, table.recentcommentsavatarend img.avatar {
+				border: 0px;
+				margin: 0;
+			}
+
+			table.recentcommentsavatartop a, table.recentcommentsavatarend a {
+				border: 0px !important;
+				background-color: transparent !important;
+			}
+
+			td.recentcommentsavatarend, td.recentcommentsavatartop {
+				padding: 0px 0px 1px 0px;
+				margin: 0px;
+			}
+
+			td.recentcommentstextend {
+				border: none !important;
+				padding: 0px 0px 2px 10px;
+			}
+
+			.rtl td.recentcommentstextend {
+				padding: 0px 10px 2px 0px;
+			}
+
+			td.recentcommentstexttop {
+				border: none;
+				padding: 0px 0px 0px 10px;
+			}
+
+			.rtl td.recentcommentstexttop {
+				padding: 0px 10px 0px 0px;
+			}
+		</style>
+		<meta name="application-name" content="xkcd"><meta name="msapplication-window" content="width=device-width;height=device-height"><meta name="msapplication-tooltip" content="The blag of the webcomic"><meta name="msapplication-task" content="name=Subscribe;action-uri=https://blog.xkcd.com/feed/;icon-uri=https://s1.wp.com/i/favicon.ico"><meta name="msapplication-task" content="name=Sign up for a free blog;action-uri=http://wordpress.com/signup/;icon-uri=https://s1.wp.com/i/favicon.ico"><meta name="msapplication-task" content="name=WordPress.com Support;action-uri=http://support.wordpress.com/;icon-uri=https://s1.wp.com/i/favicon.ico"><meta name="msapplication-task" content="name=WordPress.com Forums;action-uri=http://forums.wordpress.com/;icon-uri=https://s1.wp.com/i/favicon.ico"><meta name="description" content="The blag of the webcomic">
+<!-- Your Google Analytics Plugin is missing the tracking ID -->
+</head>
+
+<body class="home blog wp-embed-responsive customizer-styles-applied hfeed image-filters-enabled highlander-enabled highlander-light">
+<div id="page" class="site">
+	<a class="skip-link screen-reader-text" href="javascript:;">Skip to content</a>
+
+		<header id="masthead" class="site-header">
+
+			<div class="site-branding-container">
+				<div class="site-branding">
+
+								<h1 class="site-title"><a href="javascript:;" rel="home">xkcd</a></h1>
+			
+				<p class="site-description">
+				The blag of the webcomic			</p>
+			</div><!-- .site-branding -->
+			</div><!-- .site-branding-container -->
+
+					</header><!-- #masthead -->
+
+	<div id="content" class="site-content">
+
+	<div id="primary" class="content-area">
+		<main id="main" class="site-main">
+
+		
+<article id="post-1005" class="post-1005 post type-post status-publish format-standard hentry category-uncategorized entry">
+	<header class="entry-header">
+		<h2 class="entry-title"><a href="javascript:;" rel="bookmark">Book tour wrap-up</a></h2>	</header><!-- .entry-header -->
+
+	
+	<div class="entry-content">
+		
+<p>Thank you to everyone who came to events on my <a href="javascript:;">book tour</a>! It was a wild ride visiting so many cities in short succession. Thank you so much to the booksellers, venues, and especially to the wonderful people who co-hosted the tour events with me: <a href="javascript:;">Kate Darling</a>, <a href="javascript:;">Alexandra Petri</a>, <a href="javascript:;">Lev Grossman</a>, <a href="javascript:;">Jim Ottaviani</a>, <a href="javascript:;">Ken Jennings</a>, <a href="javascript:;">Adam Savage</a>, <a href="javascript:;">Ariel Waldman</a>, <a href="javascript:;">Cory Doctorow</a>, <a href="javascript:;">Kyle Hill</a>, <a href="javascript:;">Bill Amend</a>, <a href="javascript:;">Dean Regas</a>, <a href="javascript:;">Sean Cannon</a>, and <a href="javascript:;">Katie Mack</a>.</p>
+
+
+
+<p>In addition to the above, I got to meet so many other cool people during the tour, including <a href="javascript:;">Simone Giertz</a>, <a href="javascript:;">Scott Manley</a>, and lots of researchers, engineers, science-enthusiast kids, and other people working on all kinds of neat stuff. And thank you to everyone who waited an extra 5 minutes to get a book signed because there was a seismologist in line and I couldn&#8217;t stop myself from asking them a bunch of questions about earthquakes.</p>
+
+
+
+<div class="wp-block-image"><figure class="aligncenter"><img data-attachment-id="1008" data-permalink="https://blog.xkcd.com/crowd-at-sidwell/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/09/crowd-at-sidwell.jpg" data-orig-size="4032,3024" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;1.8&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;iPhone 7 Plus&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;1567628662&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;3.99&quot;,&quot;iso&quot;:&quot;32&quot;,&quot;shutter_speed&quot;:&quot;0.041666666666667&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;1&quot;}" data-image-title="crowd-at-sidwell" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/09/crowd-at-sidwell.jpg?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/09/crowd-at-sidwell.jpg?w=640" src="https://blogdotxkcddotcom.files.wordpress.com/2019/09/crowd-at-sidwell.jpg" alt="" class="wp-image-1008"><figcaption>A picture from my conversation with writer Alexandra Petri in Washington, DC</figcaption></figure></div>
+
+
+
+<p>If you weren’t able to make it to any of my tour events, <em>How To</em> is now available everywhere, including at <a rel="noreferrer noopener" href="javascript:;" target="_blank">Barnes and Noble</a>, <a rel="noreferrer noopener" href="javascript:;" target="_blank">Target</a>, <a rel="noreferrer noopener" href="javascript:;" target="_blank">Amazon</a>, <a href="javascript:;">local independents</a>, and more. Some <a rel="noreferrer noopener" href="javascript:;" target="_blank">Barnes and Noble</a> locations and indies have special signed copies, so you can check with your bookseller to see if those are available.</p>
+
+
+
+<p></p>
+	</div><!-- .entry-content -->
+
+	<footer class="entry-footer">
+		<span class="byline"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" viewbox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path><path d="M0 0h24v24H0z" fill="none"></path></svg><span class="screen-reader-text">Posted by</span><span class="author vcard"><a class="url fn n" href="javascript:;">Randall</a></span></span><span class="posted-on"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 24"><defs><path id="a" d="M0 0h24v24H0V0z"></path></defs><clippath id="b"><use xlink:href="#a" overflow="visible"></use></clippath><path clip-path="url(#b)" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm4.2 14.2L11 13V7h1.5v5.2l4.5 2.7-.8 1.3z"></path></svg><a href="javascript:;" rel="bookmark"><time class="entry-date published" datetime="2019-09-25T14:33:37-04:00">2019-09-25</time><time class="updated" datetime="2019-09-26T09:50:38-04:00">2019-09-26</time></a></span><span class="cat-links"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"></path><path d="M0 0h24v24H0z" fill="none"></path></svg><span class="screen-reader-text">Posted in</span><a href="javascript:;" rel="category tag">Uncategorized</a></span>	</footer><!-- .entry-footer -->
+</article><!-- #post-1005 -->
+
+<article id="post-975" class="post-975 post type-post status-publish format-standard hentry category-uncategorized entry">
+	<header class="entry-header">
+		<h2 class="entry-title"><a href="javascript:;" rel="bookmark">How to Send a&nbsp;File</a></h2>	</header><!-- .entry-header -->
+
+	
+	<div class="entry-content">
+		
+<p><em>My new book, <a href="index4.html">How To: Absurd Scientific Advice for Common Real-World Problems</a>, comes out in a week! You can preorder it now on <a href="javascript:;">Amazon</a>, <a href="javascript:;">Barnes &amp; Noble</a>, <a href="javascript:;">IndieBound</a>, and <a href="javascript:;">Apple Books</a>.</em></p>
+
+
+
+<p><em>Here&#8217;s an excerpt from the How To chapter on file transfers.</em></p>
+
+
+
+<h3>Chapter 19: How to Send a File</h3>
+
+
+
+<p>Sending large data files can be difficult.</p>
+
+
+
+<p>Modern software systems have moved away from the concept of “files.” They don’t show you a folder full of image files; they show you a collection of photos. But files linger on, and will probably continue to do so for decades to come. And as long as we have files, we’ll need to send them to people.</p>
+
+
+
+<div class="wp-block-image"><figure class="aligncenter size-large is-resized"><img loading="lazy" data-attachment-id="977" data-permalink="https://blog.xkcd.com/sendafile_1/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_1.png" data-orig-size="1673,469" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="sendafile_1" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_1.png?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_1.png?w=640" src="2019/08/sendafile_1.png" alt="" class="wp-image-977" width="598" height="167" srcset="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_1.png?w=596&h=167 596w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_1.png?w=1191&h=334 1191w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_1.png?w=150&h=42 150w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_1.png?w=300&h=84 300w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_1.png?w=768&h=215 768w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_1.png?w=1024&h=287 1024w" sizes="(max-width: 598px) 100vw, 598px"></figure></div>
+
+
+
+<p>The simplest, most obvious way to send a file is to pick up the device the file is stored on, walk over to the intended recipient, and hand it to them.</p>
+
+
+
+<div class="wp-block-image"><figure class="aligncenter is-resized"><img loading="lazy" data-attachment-id="978" data-permalink="https://blog.xkcd.com/sendafile_2/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_2.png" data-orig-size="1482,302" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="sendafile_2" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_2.png?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_2.png?w=640" src="2019/08/sendafile_2.png" alt="" class="wp-image-978" width="540" height="109" srcset="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_2.png?w=535&h=109 535w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_2.png?w=1070&h=218 1070w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_2.png?w=150&h=31 150w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_2.png?w=300&h=61 300w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_2.png?w=768&h=157 768w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_2.png?w=1024&h=209 1024w" sizes="(max-width: 540px) 100vw, 540px"></figure></div>
+
+
+
+<p>Carrying computers can be difficult — especially the earlier ones that were the size of a whole room — so rather than carry the whole computer, you can try detaching a piece of the computer containing the file. You can then bring this piece to the other person and let them transfer it to their own device. On a desktop-style computer, the files may be stored on a hard drive, which can often be removed without destroying the computer.</p>
+
+
+
+<p>On some devices, though, file storage is permanently attached to the electronics, making removal more challenging.</p>
+
+
+
+<div class="wp-block-image"><figure class="aligncenter is-resized"><img loading="lazy" data-attachment-id="980" data-permalink="https://blog.xkcd.com/sendafile_4/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_4.png" data-orig-size="1346,397" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="sendafile_4" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_4.png?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_4.png?w=640" src="2019/08/sendafile_4.png" alt="" class="wp-image-980" width="596" height="176" srcset="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_4.png?w=596&h=176 596w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_4.png?w=1192&h=352 1192w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_4.png?w=150&h=44 150w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_4.png?w=300&h=88 300w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_4.png?w=768&h=227 768w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_4.png?w=1024&h=302 1024w" sizes="(max-width: 596px) 100vw, 596px"></figure></div>
+
+
+
+<p>A more convenient and less destructive solution is removable storage. You can make a copy of the file, put it on a device, then give the device to the person.</p>
+
+
+
+<div class="wp-block-image"><figure class="aligncenter is-resized"><img loading="lazy" data-attachment-id="981" data-permalink="https://blog.xkcd.com/sendafile_5/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_5.png" data-orig-size="1301,666" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="sendafile_5" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_5.png?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_5.png?w=640" src="2019/08/sendafile_5.png" alt="" class="wp-image-981" width="484" height="248" srcset="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_5.png?w=484&h=248 484w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_5.png?w=968&h=496 968w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_5.png?w=150&h=77 150w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_5.png?w=300&h=154 300w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_5.png?w=768&h=393 768w" sizes="(max-width: 484px) 100vw, 484px"></figure></div>
+
+
+
+<p>Carrying storage devices around is a surprisingly high-bandwidth way to transfer information. A suitcase full of MicroSD cards contains many petabytes of data; if you want to transfer very large amounts of data, mailing boxes of disk drives will <a href="javascript:;">almost always be faster</a> than transferring them over the internet.</p>
+
+
+
+<p>If you want to send data to a specific location that’s too far to walk, but not convenient to reach by mail — say, a nearby mountaintop — you could try using some kind of autonomous vehicle to carry it. A delivery drone, for example, could easily carry a small satchel of SD cards containing terabytes of data.</p>
+
+
+
+<div class="wp-block-image"><figure class="aligncenter is-resized"><img loading="lazy" data-attachment-id="982" data-permalink="https://blog.xkcd.com/sendafile_6/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_6.png" data-orig-size="1230,411" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="sendafile_6" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_6.png?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_6.png?w=640" src="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_6.png" alt="" class="wp-image-982" width="539" height="179" srcset="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_6.png?w=536&h=179 536w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_6.png?w=1071&h=358 1071w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_6.png?w=150&h=50 150w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_6.png?w=300&h=100 300w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_6.png?w=768&h=257 768w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_6.png?w=1024&h=342 1024w" sizes="(max-width: 539px) 100vw, 539px"></figure></div>
+
+
+
+<p>Quadcopter-style drones don’t work very well over long distances thanks to the limitations of batteries. If a drone has to carry its own battery, it can only hover for so long. If it wants to hover longer, it needs to carry a bigger battery, but that means more weight and faster power consumption. For the same reason that a house supported by jet engines <em>[Note: For more on hovering houses, see Chapter 7: How to Move]</em> can only hover for a few hours, small coaster-size drones typically have flight times measured in minutes, and the larger ones used for photography are usually limited to less than an hour in the air. Even if it flew very fast, a tiny drone carrying a MicroSD card could make it just a few miles before running out of steam.</p>
+
+
+
+<div class="wp-block-image"><figure class="aligncenter is-resized"><img loading="lazy" data-attachment-id="983" data-permalink="https://blog.xkcd.com/sendafile_7/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_7.png" data-orig-size="773,1089" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="sendafile_7" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_7.png?w=213" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_7.png?w=640" src="2019/08/sendafile_7.png" alt="" class="wp-image-983" width="308" height="434" srcset="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_7.png?w=308&h=434 308w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_7.png?w=616&h=868 616w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_7.png?w=106&h=150 106w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_7.png?w=213&h=300 213w" sizes="(max-width: 308px) 100vw, 308px"></figure></div>
+
+
+
+<p>You could increase your range by making the drone bigger, adding solar panels, flying higher, and going faster. Or you could turn to the real masters of efficient long-distance flight:</p>
+
+
+
+<p>Butterflies.</p>
+
+
+
+<div class="wp-block-image"><figure class="aligncenter is-resized"><img loading="lazy" data-attachment-id="989" data-permalink="https://blog.xkcd.com/sendafile_8/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_8.png" data-orig-size="743,774" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="sendafile_8" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_8.png?w=288" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_8.png?w=640" src="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_8.png" alt="" class="wp-image-989" width="290" height="301" srcset="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_8.png?w=290&h=301 290w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_8.png?w=578&h=602 578w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_8.png?w=144&h=150 144w" sizes="(max-width: 290px) 100vw, 290px"></figure></div>
+
+
+
+<p>Monarch butterflies <a href="javascript:;">travel</a> thousands of miles during their migration across North America, with some traveling all the way from Canada to Mexico in a single season. If you look up during the spring or fall on the East Coast of the United States, you can sometimes spot them gliding by silently overhead, a few hundred feet above the ground. Their extreme range puts drones — and even many large aircraft — to shame.</p>
+
+
+
+<p>You might think butterflies have an unfair advantage over battery-powered aerial vehicles, since they can stop to consume nectar and “recharge.” Butterflies will certainly refuel if they can, but they don’t necessarily need to. Another butterfly species, the painted lady (<em>Vanessa cardui</em>), is even more impressive: it flies <a href="javascript:;">from Europe to central Africa</a>, a <a href="javascript:;">4,000-kilometer flight</a> that takes it over the Mediterranean Sea <em>and </em>the Sahara desert.</p>
+
+
+
+<div class="wp-block-image"><figure class="aligncenter is-resized"><img loading="lazy" data-attachment-id="984" data-permalink="https://blog.xkcd.com/sendafile_9/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_9.png" data-orig-size="1017,882" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="sendafile_9" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_9.png?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_9.png?w=640" src="2019/08/sendafile_9.png" alt="" class="wp-image-984" width="474" height="411" srcset="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_9.png?w=474&h=411 474w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_9.png?w=948&h=822 948w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_9.png?w=150&h=130 150w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_9.png?w=300&h=260 300w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_9.png?w=768&h=666 768w" sizes="(max-width: 474px) 100vw, 474px"></figure></div>
+
+
+
+<p>Butterflies make these journeys powered only by small reserves of stored lipids. They can fly so much more efficiently than drones in part by <a href="javascript:;">soaring</a> — they seek out thermal columns and mountain waves, then hold their wings steady and ride the rising air upward like a vulture, hawk, or  eagle.</p>
+
+
+
+<div class="wp-block-image"><figure class="aligncenter is-resized"><img loading="lazy" data-attachment-id="986" data-permalink="https://blog.xkcd.com/sendafile_10/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_10.png" data-orig-size="414,240" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="sendafile_10" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_10.png?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_10.png?w=414" src="2019/08/sendafile_10.png" alt="" class="wp-image-986" width="169" height="98" srcset="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_10.png?w=169&h=98 169w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_10.png?w=338&h=196 338w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_10.png?w=150&h=87 150w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_10.png?w=300&h=174 300w" sizes="(max-width: 169px) 100vw, 169px"></figure></div>
+
+
+
+<p>If you want to send your file to someone who lives along the migration route, could you get a butterfly to carry it for you?</p>
+
+
+
+<p>Butterflies can carry weights. Volunteers with groups like <a href="javascript:;">Monarch Watch</a> <a href="javascript:;">tag</a> tens of thousands to hundreds of thousands of monarch butterflies each year to <a href="javascript:;">track their migration</a> and monitor their population (which has been in decline in recent decades). The smaller tags weigh about a milligram, but monarchs have completed their migration with larger tags that weigh 10 mg or more.</p>
+
+
+
+<p>MicroSD cards weigh several hundred milligrams — comparable to the weight of a butterfly — so butterflies would have a hard time carrying them. But there’s no reason a storage device can’t be made smaller. MicroSD cards contain memory chips, and the storage density of these chips might be up to a gigabyte per square millimeter. Given those sizes, a butterfly could easily carry a tiny chip with a gigabyte of data. If your file is larger than that, you could break it up across multiple butterflies, and send multiple copies for redundancy.</p>
+
+
+
+<p>When your data finally arrived at its destination, the recipient would have to check a lot of butterflies to assemble all the pieces of the file. You may need to develop some kind of touchless butterfly scanner that allows them to scan many butterflies at once.</p>
+
+
+
+<p>You could avoid that problem — and increase your bandwidth dramatically — by using DNA-based storage. <a href="javascript:;">Researchers</a> have stored data by encoding it into a DNA sample, then sequencing the DNA to recover it. Systems like this can achieve densities far beyond anything we do with chips — it’s possible to store and recover hundreds of petabytes of data using a single gram of DNA.</p>
+
+
+
+<p>Each year, tens to hundreds of millions of monarch butterflies arrive in Mexico to spend the winter together in giant colonies in the mountains. If you tagged ten million of these butterflies with tiny pouches containing 5 mg of DNA storage each, the total capacity of the butterfly armada would be about 10 zettabytes — 10,000,000,000,000,000,000,000 bytes. That’s roughly the <a href="javascript:;">total</a> amount of digital data in <em>existence </em>in the late 2010s.</p>
+
+
+
+<p>If the Sun is warm, the winds are favorable, and it’s the right time of year, you could use butterflies to send someone the entire internet.</p>
+
+
+
+<div class="wp-block-image"><figure class="aligncenter is-resized"><img loading="lazy" data-attachment-id="987" data-permalink="https://blog.xkcd.com/sendafile_11/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_11.png" data-orig-size="1204,1531" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="sendafile_11" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_11.png?w=236" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_11.png?w=640" src="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_11.png" alt="" class="wp-image-987" width="475" height="604" srcset="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_11.png?w=475&h=604 475w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_11.png?w=950&h=1208 950w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_11.png?w=118&h=150 118w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_11.png?w=236&h=300 236w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_11.png?w=768&h=977 768w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/sendafile_11.png?w=805&h=1024 805w" sizes="(max-width: 475px) 100vw, 475px"></figure></div>
+
+
+
+<p><em><strong>How To: Absurd Scientific Advice for Common Real-World Problems</strong> will be released on September 3<sup>rd</sup>. You can preorder it now on <a href="javascript:;">Amazon</a>, <a href="javascript:;">Barnes &amp; Noble</a>, <a href="javascript:;">IndieBound</a>, and <a href="javascript:;">Apple Books</a>.</em></p>
+
+
+
+<p> </p>
+	</div><!-- .entry-content -->
+
+	<footer class="entry-footer">
+		<span class="byline"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" viewbox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path><path d="M0 0h24v24H0z" fill="none"></path></svg><span class="screen-reader-text">Posted by</span><span class="author vcard"><a class="url fn n" href="javascript:;">Randall</a></span></span><span class="posted-on"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 24"><defs><path id="a" d="M0 0h24v24H0V0z"></path></defs><clippath id="b"><use xlink:href="#a" overflow="visible"></use></clippath><path clip-path="url(#b)" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm4.2 14.2L11 13V7h1.5v5.2l4.5 2.7-.8 1.3z"></path></svg><a href="javascript:;" rel="bookmark"><time class="entry-date published updated" datetime="2019-08-26T09:41:54-04:00">2019-08-26</time></a></span><span class="cat-links"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"></path><path d="M0 0h24v24H0z" fill="none"></path></svg><span class="screen-reader-text">Posted in</span><a href="javascript:;" rel="category tag">Uncategorized</a></span>	</footer><!-- .entry-footer -->
+</article><!-- #post-975 -->
+
+<article id="post-950" class="post-950 post type-post status-publish format-standard hentry category-uncategorized entry">
+	<header class="entry-header">
+		<h2 class="entry-title"><a href="javascript:;" rel="bookmark">Book tour and contest&nbsp;winner</a></h2>	</header><!-- .entry-header -->
+
+	
+	<div class="entry-content">
+		
+<h2>The winner</h2>
+
+
+
+<p>We got a huge number of submissions to the <a href="javascript:;"><em>How To</em> book tour challenge</a>, and I&#8217;m delighted to announce the winner: The <em>How To</em> book tour will be taking me to Juneau, Alaska, thanks to an entry from Juneau&#8217;s <a href="javascript:;">Mendenhall Valley Public Library</a>. </p>
+
+
+
+<p>The 98-person entry was submitted in a series of four amazing YouTube videos: <a href="javascript:;">Video 1</a> / <a href="javascript:;">Video 2</a> / <a href="javascript:;">Video 3</a> / <a href="javascript:;">Video 4</a>.</p>
+
+
+
+<figure class="wp-block-image size-large"><a href="javascript:;"><img data-attachment-id="969" data-permalink="https://blog.xkcd.com/libraries/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/libraries.jpg" data-orig-size="2336,1396" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;1&quot;}" data-image-title="libraries" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/libraries.jpg?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/libraries.jpg?w=640" src="https://blogdotxkcddotcom.files.wordpress.com/2019/08/libraries.jpg" alt="" class="wp-image-969"></a></figure>
+
+
+
+<p>I&#8217;m a sucker for (a) public libraries, and (b) people who get so excited about glaciers that they lose their train of thought.</p>
+
+
+
+<figure class="wp-block-image size-large"><a href="javascript:;"><img data-attachment-id="970" data-permalink="https://blog.xkcd.com/collage/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/collage.jpg" data-orig-size="4647,2664" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;1&quot;}" data-image-title="collage" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/collage.jpg?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/collage.jpg?w=640" src="https://blogdotxkcddotcom.files.wordpress.com/2019/08/collage.jpg" alt="" class="wp-image-970"></a></figure>
+
+
+
+<p><h2>Runners-up</h2>
+
+
+
+<p>&nbsp;There were countless fantastic entries, a just few of which I want to highlight here.</p>
+
+
+
+<p>The <a href="javascript:;">Content Bookstore</a> in Northfield, MN <a href="javascript:;">organized over 60 patrons</a> into a choose-your-own-adventure story.</p>
+
+
+
+<figure class="wp-block-image size-large"><img data-attachment-id="955" data-permalink="https://blog.xkcd.com/content-bookstore-part-1/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/content-bookstore-part-1.jpg" data-orig-size="792,588" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="content-bookstore-part-1" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/content-bookstore-part-1.jpg?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/content-bookstore-part-1.jpg?w=640" src="https://blogdotxkcddotcom.files.wordpress.com/2019/08/content-bookstore-part-1.jpg" alt="" class="wp-image-955"></figure>
+
+
+
+<figure class="wp-block-image size-large"><img data-attachment-id="956" data-permalink="https://blog.xkcd.com/content-2/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/content-2.png" data-orig-size="3670,1436" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="content-2" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/content-2.png?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/content-2.png?w=640" src="https://blogdotxkcddotcom.files.wordpress.com/2019/08/content-2.png" alt="" class="wp-image-956"></figure>
+
+
+
+<p>The Sacramento Public Library hosted <a href="javascript:;">an enormous collection of stories</a>, including one which appears to confess to a bank robbery:</p>
+
+
+
+<figure class="wp-block-image size-large"><img data-attachment-id="959" data-permalink="https://blog.xkcd.com/sacramento/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sacramento.jpeg" data-orig-size="1440,425" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="sacramento" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sacramento.jpeg?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sacramento.jpeg?w=640" src="https://blogdotxkcddotcom.files.wordpress.com/2019/08/sacramento.jpeg" alt="" class="wp-image-959"><figcaption>This is Me Robin The Bank Because I’m Feeling Lucky. What If…20/20 Hindsight, I Might Regret This Confession. Ha! I Regret Nothing.</figcaption></figure>
+
+
+
+<p>Benton Lowey-Ball of Neptune Beach, Florida wrote and self-published a book, <em><a href="javascript:;">A Shameless Attempt at Convincing Randall Munroe to put Neptune Beach, Florida on his Book Tour: A tale of Necromancers and Skydiving</a></em>, specifically for this challenge.</p>
+
+
+
+<figure class="wp-block-image size-large"><img data-attachment-id="963" data-permalink="https://blog.xkcd.com/neptune-beach/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/neptune-beach.png" data-orig-size="1700,880" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="neptune-beach" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/neptune-beach.png?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/neptune-beach.png?w=640" src="https://blogdotxkcddotcom.files.wordpress.com/2019/08/neptune-beach.png" alt="" class="wp-image-963"></figure>
+
+
+
+<p>And Naitian Zhou of Ann Arbor, Michigan <a href="javascript:;">built an interactive tool</a> that can generate arbitrary grammatical sentences using Python language tools and a database of book titles.</p>
+
+
+
+<figure class="wp-block-image size-large"><img data-attachment-id="961" data-permalink="https://blog.xkcd.com/naitian/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/naitian.png" data-orig-size="2308,1312" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="naitian" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/naitian.png?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/naitian.png?w=640" src="https://blogdotxkcddotcom.files.wordpress.com/2019/08/naitian.png" alt="" class="wp-image-961"></figure>
+
+
+
+<p>We&#8217;ll be reaching out to the runners-up to send them a signed book or a personalized drawing of their bookstore or library. Thank you so much to everyone who participated!</p>
+
+
+
+<h2>Tour updates</h2>
+
+
+
+<p><p>The <em>How To</em> book tour starts on September 3<sup>rd</sup> in Cambridge. I&#8217;ll be appearing in conversation with some very cool people, including researchers, journalists, and cartoonists. We&#8217;ll be discussing <em>How To</em>, science, comics, the destruction of the universe, and the ethics of hitting drones with tennis balls.</p>
+
+
+
+<figure class="wp-block-image size-large"><img data-attachment-id="972" data-permalink="https://blog.xkcd.com/how-to-tour-image_update/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/how-to-tour-image_update.png" data-orig-size="800,800" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="how-to-tour-image_update" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/how-to-tour-image_update.png?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/how-to-tour-image_update.png?w=640" src="https://blogdotxkcddotcom.files.wordpress.com/2019/08/how-to-tour-image_update.png" alt="" class="wp-image-972"></figure>
+
+
+
+<p><p>Some of the events are already sold out, so if you want to attend, you may want to get tickets now!</p>
+
+
+
+<p><strong>TUESDAY,&nbsp;SEPTEMBER 3 | CAMBRIDGE, MA</strong></p>
+
+
+
+<p><em>In Conversation with Kate Darling | </em><a href="javascript:;">Tickets and information</a></p>
+
+
+
+<p><strong>WEDNESDAY SEPTEMBER 4 | WASHINGTON, DC</strong></p>
+
+
+
+<p><em>In Conversation with Alexandra Petri&nbsp;| </em><em>**SOLD OUT***</em></p>
+
+
+
+<p><strong>THURSDAY SEPTEMBER 5 | NEW YORK, NY</strong></p>
+
+
+
+<p><a href="javascript:;">Tickets and information</a></p>
+
+
+
+<p><strong>FRIDAY SEPTEMBER 6 | ANN ARBOR, MI</strong></p>
+
+
+
+<p><em>In Conversation with Jim Ottaviani | </em><a href="javascript:;">Tickets and information</a>&nbsp;</p>
+
+
+
+<p><strong>SUNDAY SEPTEMBER 8 | PORTLAND, OR</strong></p>
+
+
+
+<p>Event information coming soon. To pre-order the book with Powell’s, click <a href="javascript:;">here</a>.</p>
+
+
+
+<p><strong>MONDAY SEPTEMBER 9 | SEATTLE, WA</strong></p>
+
+
+
+<p><em>In Conversation with Ken Jennings | </em><a href="javascript:;">Tickets and information</a></p>
+
+
+
+<p><strong>TUESDAY SEPTEMBER 10 | SAN BERKELEY, CA&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</strong></p>
+
+
+
+<p><em>In Conversation with Adam Savage | </em><a href="javascript:;">Tickets and information</a>&nbsp;</p>
+
+
+
+<p><strong>WEDNESDAY SEPTEMBER 11 | SAN FRANCISCO, CA                                        </strong></p>
+
+
+
+<p><em>In Conversation with Ariel Waldman | </em><a href="javascript:;">RSVP/more information</a></p>
+
+
+
+<p><strong>WEDNESDAY SEPTEMBER 11 | SANTA CRUZ, CA</strong></p>
+
+
+
+<p><em>In Conversation with Cory Doctorow | </em><a href="javascript:;">Tickets and information</a></p>
+
+
+
+<p><strong>THURSDAY SEPTEMBER 12 | LOS ANGELES, CA</strong></p>
+
+
+
+<p><em>In conversation with Kyle Hill | </em><a href="javascript:;">Tickets and information</a>&nbsp;</p>
+
+
+
+<p><strong>SATURDAY SEPTEMBER 14 | SALT LAKE CITY, UT</strong></p>
+
+
+
+<p><a href="javascript:;">Tickets and information</a></p>
+
+
+
+<p><strong>MONDAY SEPTEMBER 16 | KANSAS CITY, MO</strong></p>
+
+
+
+<p><em>In Conversation with Bill Amend | </em><a href="javascript:;">Tickets and information</a></p>
+
+
+
+<p><strong>TUESDAY SEPTEMBER 17 | CINCINNATI, OH</strong></p>
+
+
+
+<p><em>In Conversation with Dean Regas</em> | <a href="javascript:;">Tickets and information</a></p>
+
+
+
+<p><strong>WEDNESDAY SEPTEMBER 18 | LOUISVILLE, KY</strong></p>
+
+
+
+<p><em>In Conversation with Sean Cannon&nbsp;| </em><em>***SOLD OUT***</em></p>
+
+
+
+<p><strong>THURSDAY SEPTEMBER 19 | RALEIGH, NC</strong></p>
+
+
+
+<p><p><em>In Conversation with Katie Mack&nbsp;| </em><em>***SOLD OUT***</em></p>
+<p>I hope to see you there!</p>
+	</div><!-- .entry-content -->
+
+	<footer class="entry-footer">
+		<span class="byline"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" viewbox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path><path d="M0 0h24v24H0z" fill="none"></path></svg><span class="screen-reader-text">Posted by</span><span class="author vcard"><a class="url fn n" href="javascript:;">Randall</a></span></span><span class="posted-on"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 24"><defs><path id="a" d="M0 0h24v24H0V0z"></path></defs><clippath id="b"><use xlink:href="#a" overflow="visible"></use></clippath><path clip-path="url(#b)" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm4.2 14.2L11 13V7h1.5v5.2l4.5 2.7-.8 1.3z"></path></svg><a href="javascript:;" rel="bookmark"><time class="entry-date published" datetime="2019-08-23T16:01:06-04:00">2019-08-23</time><time class="updated" datetime="2019-08-27T08:48:06-04:00">2019-08-27</time></a></span><span class="cat-links"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"></path><path d="M0 0h24v24H0z" fill="none"></path></svg><span class="screen-reader-text">Posted in</span><a href="javascript:;" rel="category tag">Uncategorized</a></span>	</footer><!-- .entry-footer -->
+</article><!-- #post-950 -->
+
+<article id="post-922" class="post-922 post type-post status-publish format-standard hentry category-uncategorized entry">
+	<header class="entry-header">
+		<h2 class="entry-title"><a href="javascript:;" rel="bookmark">Serena Versus the&nbsp;Drones</a></h2>	</header><!-- .entry-header -->
+
+	
+	<div class="entry-content">
+		
+<p><em>My new book, <a href="index4.html">How To</a>, comes out on September 3<sup>rd</sup> (preorder: <a href="javascript:;">Amazon</a>, <a href="javascript:;">Barnes &amp; Noble</a>, <a href="javascript:;">IndieBound</a>, and&nbsp;<a href="javascript:;">Apple Books</a>).</em></p>
+
+
+
+<p><em>One of the most exciting things about writing </em>How To<em> was that, for a few chapters, I was able to reach out to some extremely cool people who were willing to apply their unique expertise to ridiculous tasks. Among those who generously agreed to help was <a href="javascript:;">Serena Williams</a>. </em></p>
+
+
+
+<p><em>Here&#8217;s a portion of the chapter “How to Catch a Drone”, in which Serena helped test whether tennis serves could be an effective countermeasure against flying robots &#8230; by taking a drone out onto a court and hitting tennis balls at it until it crashed.</em></p>
+
+
+
+<hr class="wp-block-separator is-style-wide">
+
+
+
+<h4>How to Catch a Drone</h4>
+
+
+
+<p>A wedding-photography drone is buzzing around above you. You don&#8217;t know what it&#8217;s doing there and you want it to stop.</p>
+
+
+
+<div class="wp-block-image"><figure class="aligncenter size-large is-resized"><img loading="lazy" data-attachment-id="931" data-permalink="https://blog.xkcd.com/drone_1/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_1.png" data-orig-size="640,531" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="drone_1" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_1.png?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_1.png?w=640" src="2019/08/drone_1.png" alt="" class="wp-image-931" width="309" height="256" srcset="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_1.png?w=309&h=256 309w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_1.png?w=618&h=512 618w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_1.png?w=150&h=124 150w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_1.png?w=300&h=249 300w" sizes="(max-width: 309px) 100vw, 309px"></figure></div>
+
+
+
+<p>Let’s suppose you have a garage full of sports equipment— baseballs, tennis rackets, lawn darts, you name it. Which sport’s projectiles would work best for hitting a drone? And who would make the best anti-drone guard? A baseball pitcher? A basketball player? A tennis player? A golfer? Someone else?</p>
+
+
+
+<div class="wp-block-image"><figure class="aligncenter size-large is-resized"><img loading="lazy" data-attachment-id="930" data-permalink="https://blog.xkcd.com/drone_4/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_4.png" data-orig-size="1083,850" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="drone_4" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_4.png?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_4.png?w=640" src="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_4.png" alt="" class="wp-image-930" width="619" height="485" srcset="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_4.png?w=619&h=485 619w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_4.png?w=150&h=118 150w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_4.png?w=300&h=235 300w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_4.png?w=768&h=603 768w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_4.png?w=1024&h=804 1024w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_4.png 1083w" sizes="(max-width: 619px) 100vw, 619px"></figure></div>
+
+
+
+<p>There are a few factors to consider — accuracy, weight, range, and projectile size.</p>
+
+
+
+<div class="wp-block-image"><figure class="aligncenter size-large is-resized"><img loading="lazy" data-attachment-id="929" data-permalink="https://blog.xkcd.com/drone_5/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_5.png" data-orig-size="1278,702" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="drone_5" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_5.png?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_5.png?w=640" src="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_5.png" alt="" class="wp-image-929" width="719" height="394" srcset="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_5.png?w=717&h=394 717w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_5.png?w=150&h=82 150w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_5.png?w=300&h=165 300w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_5.png?w=768&h=422 768w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_5.png?w=1024&h=562 1024w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_5.png 1278w" sizes="(max-width: 719px) 100vw, 719px"></figure></div>
+
+
+
+<p>One sport I couldn’t find good data on was tennis. I found some studies of tennis pro accuracy, but they involved hitting targets marked on the court, rather than in the air.</p>
+
+
+
+<p>So I reached out to Serena Williams.</p>
+
+
+
+<p>To my pleasant surprise, she was happy to help out. Her husband, Alexis, offered a sacrificial drone, a DJI Mavic Pro 2 with a broken camera. They headed out to her practice court to see how effective the world’s best tennis player would be at fending off a robot invasion.</p>
+
+
+
+<p>The few studies I could find suggested tennis players would score relatively low com- pared to athletes who threw projectiles— more like kickers than pitchers. My tentative guess was that a champion player would have an accuracy ratio around 50 when serving, and take 5–7 tries to hit a drone from 40 feet. (Would a tennis ball even knock down a drone? Maybe it would just ricochet off and cause the drone to wobble! I had so many questions.)</p>
+
+
+
+<div class="wp-block-image"><figure class="aligncenter size-large is-resized"><img loading="lazy" data-attachment-id="927" data-permalink="https://blog.xkcd.com/drone_8/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_8.png" data-orig-size="1148,592" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="drone_8" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_8.png?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_8.png?w=640" src="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_8.png" alt="" class="wp-image-927" width="644" height="332" srcset="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_8.png?w=644&h=332 644w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_8.png?w=150&h=77 150w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_8.png?w=300&h=155 300w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_8.png?w=768&h=396 768w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_8.png?w=1024&h=528 1024w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_8.png 1148w" sizes="(max-width: 644px) 100vw, 644px"></figure></div>
+
+
+
+<p>Alexis flew the drone over the net and hovered there, while Serena served from the baseline.</p>
+
+
+
+<p>Her first serve went low. The second zipped past the drone to one side.</p>
+
+
+
+<div class="wp-block-image"><figure class="aligncenter size-large is-resized"><img loading="lazy" data-attachment-id="928" data-permalink="https://blog.xkcd.com/drone_9/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_9.png" data-orig-size="667,256" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="drone_9" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_9.png?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_9.png?w=640" src="2019/08/drone_9.png" alt="" class="wp-image-928" width="477" height="183" srcset="2019/08/drone_9.png?w=477&h=183 477w, 2019/08/drone_9.png?w=150&h=58 150w, 2019/08/drone_9.png?w=300&h=115 300w, 2019/08/drone_9.png 667w" sizes="(max-width: 477px) 100vw, 477px"></figure></div>
+
+
+
+<p>The third serve scored a direct hit on one of the propellers. The drone spun, momentarily seemed like it might stay in the air, then flipped over and smashed into the court. Serena started laughing as Alexis walked over to investigate the crash site, where the drone lay on the court near several propeller fragments.</p>
+
+
+
+<div class="wp-block-image"><figure class="aligncenter size-large is-resized"><img loading="lazy" data-attachment-id="926" data-permalink="https://blog.xkcd.com/drone_10/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_10.png" data-orig-size="419,257" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="drone_10" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_10.png?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_10.png?w=419" src="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_10.png" alt="" class="wp-image-926" width="359" height="220" srcset="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_10.png?w=359&h=220 359w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_10.png?w=150&h=92 150w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_10.png?w=300&h=184 300w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_10.png 419w" sizes="(max-width: 359px) 100vw, 359px"></figure></div>
+
+
+
+<p>I had expected a tennis pro would be able to hit the drone in five to seven tries; she got it in three.</p>
+
+
+
+<div class="wp-block-image"><figure class="aligncenter size-large is-resized"><img loading="lazy" data-attachment-id="925" data-permalink="https://blog.xkcd.com/drone_11/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_11.png" data-orig-size="1289,1307" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="drone_11" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_11.png?w=296" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_11.png?w=640" src="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_11.png" alt="" class="wp-image-925" width="723" height="732" srcset="https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_11.png?w=723&h=732 723w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_11.png?w=148&h=150 148w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_11.png?w=296&h=300 296w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_11.png?w=768&h=779 768w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_11.png?w=1010&h=1024 1010w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/drone_11.png 1289w" sizes="(max-width: 723px) 100vw, 723px"></figure></div>
+
+
+
+<hr class="wp-block-separator is-style-wide">
+
+
+
+<p><em>For more on anti-drone strategies, sports projectile accuracy, a discussion with a robot ethicist about whether hitting a drone with a tennis ball is wrong, and many other topics, check out <strong>How To: Absurd Scientific Advice for Common Real-World Problems</strong>, available September 3<sup>rd</sup> (preorder: <a href="javascript:;">Amazon</a>, <a href="javascript:;">Barnes &amp; Noble</a>, <a href="javascript:;">IndieBound</a>, and&nbsp;<a href="javascript:;">Apple Books</a>).</em></p>
+	</div><!-- .entry-content -->
+
+	<footer class="entry-footer">
+		<span class="byline"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" viewbox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path><path d="M0 0h24v24H0z" fill="none"></path></svg><span class="screen-reader-text">Posted by</span><span class="author vcard"><a class="url fn n" href="javascript:;">Randall</a></span></span><span class="posted-on"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 24"><defs><path id="a" d="M0 0h24v24H0V0z"></path></defs><clippath id="b"><use xlink:href="#a" overflow="visible"></use></clippath><path clip-path="url(#b)" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm4.2 14.2L11 13V7h1.5v5.2l4.5 2.7-.8 1.3z"></path></svg><a href="javascript:;" rel="bookmark"><time class="entry-date published" datetime="2019-08-16T07:16:07-04:00">2019-08-16</time><time class="updated" datetime="2019-08-16T16:49:51-04:00">2019-08-16</time></a></span><span class="cat-links"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"></path><path d="M0 0h24v24H0z" fill="none"></path></svg><span class="screen-reader-text">Posted in</span><a href="javascript:;" rel="category tag">Uncategorized</a></span>	</footer><!-- .entry-footer -->
+</article><!-- #post-922 -->
+
+<article id="post-918" class="post-918 post type-post status-publish format-standard hentry category-uncategorized entry">
+	<header class="entry-header">
+		<h2 class="entry-title"><a href="javascript:;" rel="bookmark">Win an xkcd&nbsp;sketch</a></h2>	</header><!-- .entry-header -->
+
+	
+	<div class="entry-content">
+		<p>Want a personalized sketch of yourself as an xkcd-style stick figure? If so, you can preorder my new book <em>How To</em> and submit <a href="javascript:;">this form</a> to enter a contest to win a personalized sketch of yourself!</p>
+<p>Fifteen entrants will be randomly chosen to win a personalized stick figure portrait. I&#8217;ll draw a sketch of you and send it to you, so you can share it online, hang it on your wall, use it as your social media avatar, or whatever else you&#8217;d like.</p>
+<p>There&#8217;s more information at the <a href="javascript:;">contest page</a> here, and you can find out more about <em>How To</em> and read the introduction to the book <a href="javascript:;">here</a>.</p>
+	</div><!-- .entry-content -->
+
+	<footer class="entry-footer">
+		<span class="byline"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" viewbox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path><path d="M0 0h24v24H0z" fill="none"></path></svg><span class="screen-reader-text">Posted by</span><span class="author vcard"><a class="url fn n" href="javascript:;">Randall</a></span></span><span class="posted-on"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 24"><defs><path id="a" d="M0 0h24v24H0V0z"></path></defs><clippath id="b"><use xlink:href="#a" overflow="visible"></use></clippath><path clip-path="url(#b)" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm4.2 14.2L11 13V7h1.5v5.2l4.5 2.7-.8 1.3z"></path></svg><a href="javascript:;" rel="bookmark"><time class="entry-date published" datetime="2019-08-05T13:14:15-04:00">2019-08-05</time><time class="updated" datetime="2019-08-05T13:18:13-04:00">2019-08-05</time></a></span><span class="cat-links"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"></path><path d="M0 0h24v24H0z" fill="none"></path></svg><span class="screen-reader-text">Posted in</span><a href="javascript:;" rel="category tag">Uncategorized</a></span>	</footer><!-- .entry-footer -->
+</article><!-- #post-918 -->
+
+<article id="post-896" class="post-896 post type-post status-publish format-standard hentry category-uncategorized entry">
+	<header class="entry-header">
+		<h2 class="entry-title"><a href="javascript:;" rel="bookmark">How To: Chapter list and&nbsp;introduction</a></h2>	</header><!-- .entry-header -->
+
+	
+	<div class="entry-content">
+		<p>My new book, <strong><em><a href="index4.html">How To</a>, </em></strong>comes out next month! You can preorder it on <a href="javascript:;">Amazon</a>, <a href="javascript:;">Barnes &amp; Noble</a>, <a href="javascript:;">IndieBound</a>, and <a href="javascript:;">Apple Books</a>.</p>
+<p><a href="javascript:;"><img loading="lazy" data-attachment-id="913" data-permalink="https://blog.xkcd.com/2019/08/02/how-to-chapter-list-and-introduction/blog-open/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/blog-open.png" data-orig-size="982,736" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="blog-open" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/blog-open.png?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/blog-open.png?w=640" class="alignnone size-medium wp-image-913" src="https://blogdotxkcddotcom.files.wordpress.com/2019/08/blog-open.png?w=300" alt="blog-open" width="300" height="225" srcset="https://blogdotxkcddotcom.files.wordpress.com/2019/08/blog-open.png?w=300 300w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/blog-open.png?w=600 600w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/blog-open.png?w=150 150w" sizes="(max-width: 300px) 100vw, 300px"></a></p>
+<p>I&#8217;m really excited about it! Here&#8217;s the first preview of what&#8217;s inside:</p>
+<h2>Chapter list</h2>
+<ul>
+<li>How to Jump Really High</li>
+<li>How to Throw a Pool Party</li>
+<li>How to Dig a Hole</li>
+<li>How to Play the Piano</li>
+<li>How to Make an Emergency Landing</li>
+<li>How to Cross a River</li>
+</ul>
+<p><img loading="lazy" data-attachment-id="902" data-permalink="https://blog.xkcd.com/2019/08/02/how-to-chapter-list-and-introduction/blog-hole/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/blog-hole.png" data-orig-size="934,618" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="blog-hole" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/blog-hole.png?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/blog-hole.png?w=640" class="alignnone size-medium wp-image-902" src="https://blogdotxkcddotcom.files.wordpress.com/2019/08/blog-hole.png?w=300" alt="blog-hole" width="300" height="199" srcset="https://blogdotxkcddotcom.files.wordpress.com/2019/08/blog-hole.png?w=300 300w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/blog-hole.png?w=600 600w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/blog-hole.png?w=150 150w" sizes="(max-width: 300px) 100vw, 300px"></p>
+<ul>
+<li>How to Move</li>
+<li>How to Keep Your House from Moving</li>
+<li>How to Build a Lava Moat</li>
+<li>How to Throw Things</li>
+<li>How to Play Football</li>
+<li>How to Predict the Weather</li>
+<li>How to Play Tag</li>
+<li>How to Ski</li>
+</ul>
+<p><a href="javascript:;"><img loading="lazy" data-attachment-id="903" data-permalink="https://blog.xkcd.com/2019/08/02/how-to-chapter-list-and-introduction/blog-move/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/blog-move.png" data-orig-size="934,618" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="blog-move" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/blog-move.png?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/blog-move.png?w=640" class="alignnone size-medium wp-image-903" src="https://blogdotxkcddotcom.files.wordpress.com/2019/08/blog-move.png?w=300" alt="" width="300" height="199" srcset="https://blogdotxkcddotcom.files.wordpress.com/2019/08/blog-move.png?w=300 300w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/blog-move.png?w=600 600w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/blog-move.png?w=150 150w" sizes="(max-width: 300px) 100vw, 300px"></a></p>
+<ul>
+<li>How to Mail a Package</li>
+<li>How to Power Your House (on Earth)</li>
+<li>How to Power Your House (on Mars)</li>
+<li>How to Make Friends</li>
+<li>How to Send a File</li>
+<li>How to Charge Your Phone</li>
+<li>How to Take a Selfie</li>
+</ul>
+<p><img loading="lazy" data-attachment-id="901" data-permalink="https://blog.xkcd.com/2019/08/02/how-to-chapter-list-and-introduction/blog-river/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/blog-river.png" data-orig-size="934,618" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="blog-river" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/blog-river.png?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/blog-river.png?w=640" class="alignnone size-medium wp-image-901" src="2019/08/blog-river-300.png" alt="blog-river" width="300" height="199" srcset="2019/08/blog-river-300.png 300w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/blog-river.png?w=600 600w, https://blogdotxkcddotcom.files.wordpress.com/2019/08/blog-river.png?w=150 150w" sizes="(max-width: 300px) 100vw, 300px"></p>
+<ul>
+<li>How to Catch a Drone</li>
+<li>How to Tell If You’re a Nineties Kid</li>
+<li>How to Win an Election</li>
+<li>How to Decorate a Tree</li>
+<li>How to Get Somewhere Fast</li>
+<li>How to Be On Time</li>
+<li>How to Dispose of This Book</li>
+</ul>
+<p>In addition to the main chapters, the book also features short guides on topics including tornado chasing, dog walking, and highway engineering.</p>
+<h2>Introduction</h2>
+<p>This is a book of bad ideas.</p>
+<p>At least, most of them are bad ideas. It’s possible some good ones slipped through the cracks. If so, I apologize.</p>
+<p>Some ideas that sound ridiculous turn out to be revolutionary. Smearing mold on an infected cut sounds like a terrible idea, but the discovery of penicillin showed that it could be a miracle cure. On the other hand, the world is full of disgusting stuff that you <em>could</em> smear on a wound, and most of them won’t make it better. Not all ridiculous ideas are good. So how do we tell the good ideas from the bad? We can try them and see what happens. But sometimes, we can use math, research, and things we already know to work out what will happen if we do.</p>
+<p>When NASA was planning to send its car-size <em>Curiosity</em> rover to Mars, they had to figure out how to land it gently on the surface. Previous rovers had landed using parachutes and air bags, so NASA engineers considered this approach with <em>Curiosity</em>, but the rover was too large and heavy for parachutes to slow it down enough in Mars’s thin atmosphere. They also thought about mounting rockets on the rover to let it hover and touch down gently, but the exhaust would create dust clouds that would obscure the surface and make it hard to land safely.</p>
+<p>Eventually, they came up with the idea of a <span style="font-weight:400;">“</span>sky crane<span style="font-weight:400;">”</span> —a vehicle that would hover high above the surface using rockets while lowering <em>Curiosity</em> to the ground on a long tether. This sounded like a ridiculous idea, but every other idea they could come up with was worse. The more they looked at the sky crane idea, the more plausible it seemed. So they tried it, and it worked.</p>
+<p>We all start out life not knowing how to do things. If we’re lucky, when we need to do something, we can find someone to show us how. But sometimes, we have to come up with a way to do it ourselves. This means thinking of ideas and then trying to decide whether they’re good or not.</p>
+<p>This book explores unusual approaches to common tasks, and looks at what would happen to you if you tried them. Figuring out why they would or wouldn’t work can be fun and informative and sometimes lead you to surprising places. Maybe an idea is bad, but figuring out exactly <em>why</em> it’s a bad idea can teach you a lot—and might help you think of a better approach.</p>
+<p>And even if you already know the right way to do all these things, it can be helpful to try to look at the world through the eyes of someone who doesn’t. After all, for anything that <span style="font-weight:400;">“</span>everyone knows<span style="font-weight:400;">” </span>by the time they reach adulthood, every day over 10,000 people in the United States alone are learning it for the first time.</p>
+<p><img loading="lazy" data-attachment-id="911" data-permalink="https://blog.xkcd.com/2019/08/02/how-to-chapter-list-and-introduction/ten_thousand/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/ten_thousand.png" data-orig-size="778,440" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="ten_thousand" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/ten_thousand.png?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/08/ten_thousand.png?w=640" class="alignnone size-full wp-image-911" src="2019/08/ten_thousand.png" alt="ten_thousand" width="778" height="440" srcset="2019/08/ten_thousand.png 778w, 2019/08/ten_thousand.png?w=150&amp;h=85 150w, 2019/08/ten_thousand.png?w=300&amp;h=170 300w, 2019/08/ten_thousand.png?w=768&amp;h=434 768w" sizes="(max-width: 778px) 100vw, 778px"></p>
+<p>That’s why I don’t like making fun of people for admitting they don’t know something or never learned how to do something. Because if you do that, all it does is teach them not to tell you when they’re learning something . . . and you miss out on the fun.</p>
+<p>This book may not teach you how to throw a ball, how to ski, or how to move. But I hope you learn something from it. If you do, you’re one of today’s lucky 10,000.</p>
+<p><em>Preorder: <a href="javascript:;">Amazon</a>, <a href="javascript:;">Barnes &amp; Noble</a>, <a href="javascript:;">IndieBound</a>, and <a href="javascript:;">Apple Books</a>.</em></p>
+	</div><!-- .entry-content -->
+
+	<footer class="entry-footer">
+		<span class="byline"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" viewbox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path><path d="M0 0h24v24H0z" fill="none"></path></svg><span class="screen-reader-text">Posted by</span><span class="author vcard"><a class="url fn n" href="javascript:;">Randall</a></span></span><span class="posted-on"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 24"><defs><path id="a" d="M0 0h24v24H0V0z"></path></defs><clippath id="b"><use xlink:href="#a" overflow="visible"></use></clippath><path clip-path="url(#b)" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm4.2 14.2L11 13V7h1.5v5.2l4.5 2.7-.8 1.3z"></path></svg><a href="javascript:;" rel="bookmark"><time class="entry-date published" datetime="2019-08-02T15:57:04-04:00">2019-08-02</time><time class="updated" datetime="2019-08-02T15:58:38-04:00">2019-08-02</time></a></span><span class="cat-links"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"></path><path d="M0 0h24v24H0z" fill="none"></path></svg><span class="screen-reader-text">Posted in</span><a href="javascript:;" rel="category tag">Uncategorized</a></span>	</footer><!-- .entry-footer -->
+</article><!-- #post-896 -->
+
+<article id="post-894" class="post-894 post type-post status-publish format-standard hentry category-uncategorized tag-i-never-use-these-tags-for-anything-but-i-dont-know-how-to-turn-them-off entry">
+	<header class="entry-header">
+		<h2 class="entry-title"><a href="javascript:;" rel="bookmark">San Diego Comic-Con</a></h2>	</header><!-- .entry-header -->
+
+	
+	<div class="entry-content">
+		<p>I&#8217;m going to be at Comic-Con in San Diego this week! I&#8217;ll be appearing on panels with some really neat people for conversations about science, comics, and writing, and talking about my new book, <a href="index4.html">How To: Absurd Scientific Advice for Common Real-World Problems</a>.</p>
+<p>Here&#8217;s my panel/event schedule. If you&#8217;re attending, come see me there!</p>
+<p style="font-weight:400;"><strong><u>THURSDAY JULY 18, 2019<br>
+</u></strong></p>
+<p style="font-weight:400;">6:30 &#8211; 7:30 PM<br>
+<strong>CONDENSING AN IDEA: MAKING THE DIFFICULT PALATABLE<br>
+</strong>Location: Room 26AB<br>
+<em>How do you distill a story down to its main components? Comics often call for brevity, but how does that work with a complex story or idea? Comic-Con special guests discuss how they delve into their complex worlds of comics and come out the other side with stories we readily consume. Panelists include <strong>Kurt Busiek</strong> (</em><em>Avengers</em><em>), <strong>Jon B. Cooke</strong> (</em><em>Comic Book Artist</em><em>), and <strong>Randall Munroe</strong> (</em><em>xkcd</em><em>), along with <strong>Dani Colman, Tea Fougner</strong> (editorial director for comics, King Features Syndicate), and moderator <strong>Barbara Dillon.<br>
+</strong></em><strong>More info</strong>:<strong> <a href="javascript:;">https://sched.co/Rlvs</a></strong></p>
+<p><strong><u>FRIDAY JULY 19, 2019</u></strong></p>
+<p style="font-weight:400;">10:00 &#8211; 11:00 AM<br>
+<strong>THE FACTUAL AND THE ACTUAL<br>
+</strong>Location: Room 32AB<br>
+<em>Enjoy exploring science, history, space, and more through sequential art with <strong>Randall Munroe</strong> (</em><em>How to</em><em>),<strong> John Hendrix</strong> (</em><em>The Faithful Spy</em><em>), <strong>Don Brown</strong> (</em><em>Rocket to the Moon! Big Ideas That Changed the World</em><em> #1),<strong> Dylan Meconis</strong> (</em><em>Queen of the Sea</em><em>),<strong> Jim Ottaviani</strong>(</em><em>Hawking</em><em>), and <strong>Rachel Ignotofsky</strong> (</em><em>Women in Art</em><em>) in conversation with librarian <strong>Judy Prince-Neeb</strong> (Chula Vista Public Library).<br>
+</em><strong>More info: <a href="javascript:;">https://sched.co/RqBO</a></strong></p>
+<p style="font-weight:400;"><strong><u>SATURDAY JULY 20, 2019</u></strong></p>
+<p style="font-weight:400;">10:00 &#8211; 11:00 AM<strong><br>
+</strong><strong>SPOTLIGHT ON RANDALL MUNROE- How To: Absurd Scientific Advice for Common, Real-World Problems<br>
+</strong>Location: Room 4<br>
+<strong><em>Randall Munroe,</em></strong><em> creator of </em><em>xkcd,</em><em> discusses his new book </em><em>How To,</em><em> a guide to using science to turn everyday problems into much bigger, more exciting problems. Learn how to cross a river by boiling it, get tips on how to make skiing much more dangerous using liquid oxygen, and hear about his experience asking famous experts the most ridiculous questions he could think of.</em><br>
+<strong>More info: <a href="javascript:;">https://sched.co/Rra2</a></strong></p>
+<p style="font-weight:400;">3:00PM<br>
+<strong>ADVANCED GALLEY SIGNING<br>
+</strong>Location: Random House Booth #1515<br>
+<em>Come by the Penguin Random House booth to get a signed advanced copy of Randall Munroe’s forthcoming book “HOW TO: Absurd Scientific Advice for Common Real-World Problems.” Tickets are required for all signings at the Penguin Random House book and are available first come, first serve and while supplies last. Tickets will be distributed approximately 10 minutes before the start time.  </em></p>
+<p style="font-weight:400;"><strong><u>SUNDAY JULY 21, 2019<br>
+</u></strong></p>
+<p style="font-weight:400;">1:00 &#8211; 2:00 PM<br>
+<strong>SHORT FORM COMICS FOR EVERY READER<br>
+</strong>Location: Room # 28DE<br>
+<strong><em>Aminder Dhaliwal</em></strong><em> (</em><em>Woman World</em><em>), <strong>Ebony Flowers</strong> (</em><em>Hot Comb</em><em>), <strong>Kevin Huizenga</strong> (</em><em>The River at Night</em><em>), <strong>Randall Munroe</strong> (</em><em>What If</em><em>), and <strong>Sophie Yanow</strong> (</em><em>The Contradictions</em><em>) are masters of the short form comic, whether serialized online, in pamphlets, or collected in graphic novel form. <strong>Sarah Mirk,</strong> senior editor at </em><em>The Nib,</em><em> leads a conversation on pacing, flow from story to story (or strip to strip), and much more.<br>
+</em><strong>More info: <a href="javascript:;">https://sched.co/Rsrz</a></strong></p>
+	</div><!-- .entry-content -->
+
+	<footer class="entry-footer">
+		<span class="byline"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" viewbox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path><path d="M0 0h24v24H0z" fill="none"></path></svg><span class="screen-reader-text">Posted by</span><span class="author vcard"><a class="url fn n" href="javascript:;">Randall</a></span></span><span class="posted-on"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 24"><defs><path id="a" d="M0 0h24v24H0V0z"></path></defs><clippath id="b"><use xlink:href="#a" overflow="visible"></use></clippath><path clip-path="url(#b)" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm4.2 14.2L11 13V7h1.5v5.2l4.5 2.7-.8 1.3z"></path></svg><a href="javascript:;" rel="bookmark"><time class="entry-date published updated" datetime="2019-07-15T10:10:56-04:00">2019-07-15</time></a></span><span class="cat-links"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"></path><path d="M0 0h24v24H0z" fill="none"></path></svg><span class="screen-reader-text">Posted in</span><a href="javascript:;" rel="category tag">Uncategorized</a></span><span class="tags-links"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 24"><path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z"></path><path d="M0 0h24v24H0z" fill="none"></path></svg><span class="screen-reader-text">Tags: </span><a href="javascript:;" rel="tag">I never use these tags for anything but I don't know how to turn them off</a></span>	</footer><!-- .entry-footer -->
+</article><!-- #post-894 -->
+
+<article id="post-887" class="post-887 post type-post status-publish format-standard hentry category-uncategorized entry">
+	<header class="entry-header">
+		<h2 class="entry-title"><a href="javascript:;" rel="bookmark">Book tour announcement!</a></h2>	</header><!-- .entry-header -->
+
+	
+	<div class="entry-content">
+		<p>My new book, <em><a href="index4.html">How To: Absurd Scientific Advice for Common Real-World Problems</a></em>, is coming out on September 3rd, and I&#8217;ll be going on a short book tour! (Full information for each stop is included at the bottom of this post.)</p>
+<p><img loading="lazy" data-attachment-id="891" data-permalink="https://blog.xkcd.com/2019/06/10/book-tour-announcement/howtotour-image-final/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/06/howtotour-image-final.png" data-orig-size="800,800" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="HowToTour-image-FINAL" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/06/howtotour-image-final.png?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/06/howtotour-image-final.png?w=640" class="alignnone size-full wp-image-891" src="https://blogdotxkcddotcom.files.wordpress.com/2019/06/howtotour-image-final.png" alt="HowToTour-image-FINAL" width="800" height="800" srcset="https://blogdotxkcddotcom.files.wordpress.com/2019/06/howtotour-image-final.png 800w, https://blogdotxkcddotcom.files.wordpress.com/2019/06/howtotour-image-final.png?w=150&h=150 150w, https://blogdotxkcddotcom.files.wordpress.com/2019/06/howtotour-image-final.png?w=300&h=300 300w, https://blogdotxkcddotcom.files.wordpress.com/2019/06/howtotour-image-final.png?w=768&h=768 768w" sizes="(max-width: 800px) 100vw, 800px"></p>
+<h2><strong>How to invite me to your town</strong></h2>
+<p>Don&#8217;t see your city on the list? You can invite me! I&#8217;ll be adding one more US stop to my tour based on the results of a challenge.</p>
+<p>The challenge: <strong><em>Write the best story using nothing but book covers.</em></strong></p>
+<p>Arrange the titles of your favorite books into sentences that tell a story, assemble a single continuous line of people holding up the covers, and take a photo or video documenting your feat. You can make the story as long as you want, but each book needs to be held by a different human.</p>
+<p><img loading="lazy" data-attachment-id="889" data-permalink="https://blog.xkcd.com/2019/06/10/book-tour-announcement/example-2/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/06/example-2.jpg" data-orig-size="3984,1624" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;4&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;Canon EOS Rebel T6i&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;1559688683&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;23&quot;,&quot;iso&quot;:&quot;320&quot;,&quot;shutter_speed&quot;:&quot;0.033333333333333&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;1&quot;}" data-image-title="Example 2" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/06/example-2.jpg?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/06/example-2.jpg?w=640" class="alignnone size-full wp-image-889" src="https://blogdotxkcddotcom.files.wordpress.com/2019/06/example-2.jpg" alt="Example 2" width="3984" height="1624" srcset="https://blogdotxkcddotcom.files.wordpress.com/2019/06/example-2.jpg 3984w, https://blogdotxkcddotcom.files.wordpress.com/2019/06/example-2.jpg?w=150&h=61 150w, https://blogdotxkcddotcom.files.wordpress.com/2019/06/example-2.jpg?w=300&h=122 300w, https://blogdotxkcddotcom.files.wordpress.com/2019/06/example-2.jpg?w=768&h=313 768w, https://blogdotxkcddotcom.files.wordpress.com/2019/06/example-2.jpg?w=1024&h=417 1024w" sizes="(max-width: 3984px) 100vw, 3984px"></p>
+<p>Creative grammar is fine, and you’ll get extra credit for including as many books and people as possible.</p>
+<p><img loading="lazy" data-attachment-id="888" data-permalink="https://blog.xkcd.com/2019/06/10/book-tour-announcement/example-1/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/06/example-1.jpg" data-orig-size="3984,1948" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;4&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;Canon EOS Rebel T6i&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;1559688629&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;24&quot;,&quot;iso&quot;:&quot;250&quot;,&quot;shutter_speed&quot;:&quot;0.033333333333333&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;1&quot;}" data-image-title="Example 1" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/06/example-1.jpg?w=300" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/06/example-1.jpg?w=640" class="alignnone size-full wp-image-888" src="https://blogdotxkcddotcom.files.wordpress.com/2019/06/example-1.jpg" alt="Example 1" width="3984" height="1948" srcset="https://blogdotxkcddotcom.files.wordpress.com/2019/06/example-1.jpg 3984w, https://blogdotxkcddotcom.files.wordpress.com/2019/06/example-1.jpg?w=150&h=73 150w, https://blogdotxkcddotcom.files.wordpress.com/2019/06/example-1.jpg?w=300&h=147 300w, https://blogdotxkcddotcom.files.wordpress.com/2019/06/example-1.jpg?w=768&h=376 768w, https://blogdotxkcddotcom.files.wordpress.com/2019/06/example-1.jpg?w=1024&h=501 1024w" sizes="(max-width: 3984px) 100vw, 3984px"></p>
+<p>Once your photo or video entry is ready, share it in one of two ways:</p>
+<ul>
+<li>POST it on social media using the hashtag #howtoxkcd</li>
+<li>EMAIL it to <a href="mailto:howtoxkcd@gmail.com">howtoxkcd@gmail.com</a></li>
+</ul>
+<p>Submit your entry between June 10 and July 31. Make sure to include your location (city/state, US only) so we know where to find you! The winner will be announced in August.</p>
+<p>Questions? Email <a href="mailto:howtoxkcd@gmail.com">howtoxkcd@gmail.com</a> with QUESTION in the subject line!</p>
+<h2>Full tour information</h2>
+<p><strong>TUESDAY, SEPTEMBER 3</strong><br>
+<strong>CAMBRIDGE, MA</strong><br>
+7:00 PM | HARVARD SCIENCE CENTER presented by HARVARD BOOKSTORE<br>
+Sanders Theater, 45 Quincy St, Cambridge, MA 02138<br>
+<a href="javascript:;">Tickets and information</a></p>
+<p><strong>WEDNESDAY SEPTEMBER 4</strong><br>
+<strong>WASHINGTON, DC</strong><br>
+7:00 PM | SIDWELL FRIENDS SCHOOL presented by POLITICS &amp; PROSE<br>
+Meeting House, 3825 Wisconsin Ave, Washington, DC 20016<br>
+<a href="javascript:;">Tickets and information</a></p>
+<p><strong>THURSDAY SEPTEMBER 5</strong><br>
+<strong>NEW YORK, NY</strong><br>
+7:00 PM | COOPER UNION presented by STRAND BOOK STORE<br>
+E 7th St, New York, NY 10003<br>
+<a href="javascript:;">Tickets and information</a></p>
+<p><strong>FRIDAY SEPTEMBER 6</strong><br>
+<strong>ANN ARBOR, MI</strong><br>
+7:00 PM | RACKHAM AUDITORIUM presented by LITERATI BOOKSTORE<br>
+915 E Washington St, Ann Arbor, MI 48109<br>
+<a href="javascript:;">Tickets and information</a></p>
+<p><strong>SUNDAY SEPTEMBER 8</strong><br>
+<strong>PORTLAND, OR</strong><br>
+7:30 PM | POWELL’S CITY OF BOOKS<br>
+1005 W Burnside St, Portland, OR 97209<br>
+Event information coming soon! <a href="javascript:;">Click here</a> to pre-order the book with Powell’s.</p>
+<p><strong>MONDAY SEPTEMBER 9</strong><br>
+<strong>SEATTLE, WA</strong><br>
+7:00 PM | THIRD PLACE BOOKS<br>
+17171 Bothell Way NE, #A101, Lake Forest Park, WA 98155<br>
+<a href="javascript:;">Tickets and information</a></p>
+<p><strong>TUESDAY SEPTEMBER 10</strong><br>
+<strong>SAN FRANCISCO, CA</strong><br>
+7:30 PM | FIRST CONGREGATIONAL CHURCH OF BERKELEY presented by KPFA and PEGASUS BOOKS<br>
+2345 Channing Way, Berkeley, CA 94704<br>
+<a href="javascript:;">Tickets and information</a></p>
+<p><strong>WEDNESDAY SEPTEMBER 11</strong><br>
+<strong>SANTA CRUZ, CA</strong><br>
+7:00 PM | SANTA CRUZ BIBLE CHURCH presented by BOOKSHOP SANTA CRUZ<br>
+440 Frederick St, Santa Cruz, CA 95062<br>
+<a href="javascript:;">Tickets and information</a></p>
+<p><strong>THURSDAY SEPTEMBER 12</strong><br>
+<strong>LOS ANGELES, CA</strong><br>
+8:00 PM | ARATANI THEATER presented by LIVE TALKS LA<br>
+244 S. San Pedro Street, Downtown Los Angeles, CA 90012<br>
+<a href="javascript:;">Tickets and information</a></p>
+<p><strong>SATURDAY SEPTEMBER 14</strong><br>
+<strong>SALT LAKE CITY, UT</strong><br>
+7:00 PM | LIBBY GARDNER HALL @ UNIVERSITY OF UTAH presented by WELLER BOOK WORKS &amp; UTAH TRIANGLE FRATERNITY<br>
+1375 Presidents’ Cir, Salt Lake City, UT 84112<br>
+<a href="javascript:;">Tickets and information</a></p>
+<p><strong>MONDAY SEPTEMBER 16</strong><br>
+<strong>KANSAS CITY, MO</strong><br>
+7:00 PM | UNITY TEMPLE ON THE PLAZA presented by RAINY DAY BOOKS<br>
+707 W 47th St, Kansas City, MO 64112<br>
+<a href="javascript:;">Tickets and information</a></p>
+<p><strong>TUESDAY SEPTEMBER 17</strong><br>
+<strong>CINCINNATI, OH</strong><br>
+7:00 PM | JOSEPH-BETH BOOKSELLERS<br>
+2692 Madison Rd, Cincinnati, OH 45208<br>
+<a href="javascript:;">Tickets and information</a></p>
+<p><strong>WEDNESDAY SEPTEMBER 18</strong><br>
+<strong>LOUISVILLE, KY</strong><br>
+7:00 PM | LOUISVILLE FREE PUBLIC LIBRARY presented by CARMICHAEL’S BOOKSTORE<br>
+301 York Street, Louisville, KY 40203<br>
+<a href="javascript:;">RSVP/more information</a></p>
+<p><strong>THURSDAY SEPTEMBER 19</strong><br>
+<strong>RALEIGH, NC</strong><br>
+7:00 PM | HUNT LIBRARY @ NORTH CAROLINA STATE UNIVERSITY presented by QUAILRIDGE BOOKS<br>
+1070 Partners Way, Raleigh, NC 27606<br>
+<a href="javascript:;">Tickets and information</a></p>
+	</div><!-- .entry-content -->
+
+	<footer class="entry-footer">
+		<span class="byline"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" viewbox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path><path d="M0 0h24v24H0z" fill="none"></path></svg><span class="screen-reader-text">Posted by</span><span class="author vcard"><a class="url fn n" href="javascript:;">Randall</a></span></span><span class="posted-on"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 24"><defs><path id="a" d="M0 0h24v24H0V0z"></path></defs><clippath id="b"><use xlink:href="#a" overflow="visible"></use></clippath><path clip-path="url(#b)" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm4.2 14.2L11 13V7h1.5v5.2l4.5 2.7-.8 1.3z"></path></svg><a href="javascript:;" rel="bookmark"><time class="entry-date published" datetime="2019-06-10T12:35:56-04:00">2019-06-10</time><time class="updated" datetime="2019-06-10T13:31:04-04:00">2019-06-10</time></a></span><span class="cat-links"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"></path><path d="M0 0h24v24H0z" fill="none"></path></svg><span class="screen-reader-text">Posted in</span><a href="javascript:;" rel="category tag">Uncategorized</a></span>	</footer><!-- .entry-footer -->
+</article><!-- #post-887 -->
+
+<article id="post-883" class="post-883 post type-post status-publish format-standard hentry category-uncategorized entry">
+	<header class="entry-header">
+		<h2 class="entry-title"><a href="javascript:;" rel="bookmark">How To: Absurd Scientific Advice for Common Real-World&nbsp;Problems</a></h2>	</header><!-- .entry-header -->
+
+	
+	<div class="entry-content">
+		<p><span style="font-weight:300;">I’m excited to announce that I have a new book coming out! It’s titled </span><b>How To: Absurd Scientific Advice for Common Real-World Problems</b><span style="font-weight:300;">, and it’s an extremely unhelpful guide to solving everyday problems.</span></p>
+<p><a href="javascript:;"><img loading="lazy" data-attachment-id="884" data-permalink="https://blog.xkcd.com/2019/02/05/how-to-absurd-scientific-advice-for-common-real-world-problems/how-to-blog/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2019/02/how-to-blog.png" data-orig-size="420,540" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="how-to-blog" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2019/02/how-to-blog.png?w=233" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2019/02/how-to-blog.png?w=420" class="alignnone wp-image-884" src="2019/02/how-to-blog.png" alt="how-to-blog" width="300" height="386" srcset="2019/02/how-to-blog.png?w=300&h=386 300w, 2019/02/how-to-blog.png?w=117&h=150 117w, 2019/02/how-to-blog.png?w=233&h=300 233w, 2019/02/how-to-blog.png 420w" sizes="(max-width: 300px) 100vw, 300px"></a></p>
+<p><span style="font-weight:300;"><strong>How To</strong> is an instruction manual for taking everyday problems and using science and creative thinking to turn them into much bigger and more exciting problems. It teaches you how to cross a river by boiling it, outlines some of the many uses for lava around the home, and walks you through how to use experimental military research to ensure that your friends will never again ask you to help them move. </span></p>
+<p><span style="font-weight:300;">From changing a lightbulb to throwing a pool party, it describes unusual ways to accomplish common tasks, and analyzes what would happen to you if you tried them. In addition to being a profoundly unhelpful self-help book, it&#8217;s an exercise in applying math, science, and research to ordinary problems, and a tour through some of the strange and fun science underlying the world around us.</span></p>
+<p><strong>How To</strong> will be released on September 3rd, but you can preorder it now from <a href="javascript:;">Amazon</a>, <a href="javascript:;">Barnes &amp; Noble</a>, <a href="javascript:;">Books-A-Million</a>, <a href="javascript:;">Indie Bound</a>, and <a href="javascript:;">Apple Books</a>.</p>
+<p>For more, you can check out my <a href="javascript:;">Q&amp;A with Entertainment Weekly</a> about the book, and you can find details about foreign editions at <a href="index4.html">xkcd.com/how-to</a>.</p>
+	</div><!-- .entry-content -->
+
+	<footer class="entry-footer">
+		<span class="byline"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" viewbox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path><path d="M0 0h24v24H0z" fill="none"></path></svg><span class="screen-reader-text">Posted by</span><span class="author vcard"><a class="url fn n" href="javascript:;">Randall</a></span></span><span class="posted-on"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 24"><defs><path id="a" d="M0 0h24v24H0V0z"></path></defs><clippath id="b"><use xlink:href="#a" overflow="visible"></use></clippath><path clip-path="url(#b)" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm4.2 14.2L11 13V7h1.5v5.2l4.5 2.7-.8 1.3z"></path></svg><a href="javascript:;" rel="bookmark"><time class="entry-date published" datetime="2019-02-05T11:49:09-05:00">2019-02-05</time><time class="updated" datetime="2019-02-05T14:41:48-05:00">2019-02-05</time></a></span><span class="cat-links"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"></path><path d="M0 0h24v24H0z" fill="none"></path></svg><span class="screen-reader-text">Posted in</span><a href="javascript:;" rel="category tag">Uncategorized</a></span><span class="comments-link"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" viewbox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><path d="M21.99 4c0-1.1-.89-2-1.99-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4-.01-18z"></path><path d="M0 0h24v24H0z" fill="none"></path></svg><a href="javascript:;">1 Comment<span class="screen-reader-text"> on How To: Absurd Scientific Advice for Common Real-World&nbsp;Problems</span></a></span>	</footer><!-- .entry-footer -->
+</article><!-- #post-883 -->
+
+<article id="post-847" class="post-847 post type-post status-publish format-standard hentry category-uncategorized entry">
+	<header class="entry-header">
+		<h2 class="entry-title"><a href="javascript:;" rel="bookmark">A puzzle for the&nbsp;UK</a></h2>	</header><!-- .entry-header -->
+
+	
+	<div class="entry-content">
+		<p>Sadly, my current <a href="javascript:;">Thing Explainer</a> book tour doesn&#8217;t stop in the UK (although you can come see me at London&#8217;s Royal Institution via live videolink on <span class="aBn"><span class="aQJ">December 7th—</span></span>tickets <a href="javascript:;">here</a>).</p>
+<p>However, in lieu of an in-person visit, my publisher and I have put together a special puzzle for UK readers to solve.</p>
+<p>The puzzle has two steps. Step one is to find out where step two is.</p>
+<p>For step one, you can pick any one of five cities. Here&#8217;s a helpful map, followed by some interesting facts about each city.</p>
+<p><img loading="lazy" data-attachment-id="866" data-permalink="https://blog.xkcd.com/2015/11/24/a-puzzle-for-the-uk/uk-map-80/" data-orig-file="https://blogdotxkcddotcom.files.wordpress.com/2015/11/uk-map-80.png" data-orig-size="701,945" data-comments-opened="1" data-image-meta="{&quot;aperture&quot;:&quot;0&quot;,&quot;credit&quot;:&quot;&quot;,&quot;camera&quot;:&quot;&quot;,&quot;caption&quot;:&quot;&quot;,&quot;created_timestamp&quot;:&quot;0&quot;,&quot;copyright&quot;:&quot;&quot;,&quot;focal_length&quot;:&quot;0&quot;,&quot;iso&quot;:&quot;0&quot;,&quot;shutter_speed&quot;:&quot;0&quot;,&quot;title&quot;:&quot;&quot;,&quot;orientation&quot;:&quot;0&quot;}" data-image-title="uk-map-80" data-image-description="" data-medium-file="https://blogdotxkcddotcom.files.wordpress.com/2015/11/uk-map-80.png?w=223" data-large-file="https://blogdotxkcddotcom.files.wordpress.com/2015/11/uk-map-80.png?w=640" class="alignnone size-full wp-image-866" src="https://blogdotxkcddotcom.files.wordpress.com/2015/11/uk-map-80.png" alt="uk-map-80.png" width="701" height="945" srcset="https://blogdotxkcddotcom.files.wordpress.com/2015/11/uk-map-80.png 701w, https://blogdotxkcddotcom.files.wordpress.com/2015/11/uk-map-80.png?w=111&h=150 111w, https://blogdotxkcddotcom.files.wordpress.com/2015/11/uk-map-80.png?w=223&h=300 223w" sizes="(max-width: 701px) 100vw, 701px"></p>
+<p><strong>Bristol</strong>: 2.72km<br>
+A major port, built on seven very steep hills, Bristol has long been home to explorers and inventors &#8211; and the UK&#8217;s oldest dinosaur. In 1497 John Cabot sailed out of Bristol to try to find a better route to Asia and discovered Newfoundland instead. Isambard Kingdom Brunel designed this tall road in 1830. It took another 34 years to finish, and he lived only to see the towers built (one in the suburb the road is named after).</p>
+<p><strong>London</strong>: 0.44km<br>
+A city famous (in song) for its bridges falling down and (in stories) for its streets not being paved with gold.  A fifth of all the pieces everything is made of were discovered in London, including hydrogen (originally called &#8216;inflammable air&#8217;) in Clapham, and ten by Humphrey Davy here. There&#8217;s even a red world space car in the Science Museum.</p>
+<p><strong>Oxford</strong>: 0.51km<br>
+Inaccurately described by writers as &#8216;a city of dreaming spires&#8217;, Oxford is obsessed with thing explaining. Oxford professors CS Lewis, Tolkien and Lewis Carroll turned Christianity, Anglo Saxon and mathematics into successful works of fiction. This college lays claim to William of Ockham who came up with the principle of Ockham&#8217;s razor, that the most straightforward answer is usually the right one. They would all agree that the writing stick is mightier than the sword.</p>
+<p><strong>Edinburgh</strong>: 1.85km<br>
+Built on an extinct volcano, this city is famous for its body snatchers, for Peter Higgs (big tiny thing hitter) and for Dolly the sheep. Alexander Graham Bell was educated here, and missed it so much when he moved across the Atlantic that he invented the telephone, precursor to the hand computer.</p>
+<p><strong>Cambridge</strong>: 0.05km<br>
+The university was founded in 1209 by students on the run from the Oxford police. Home to Isaac Newton, famous for working out colours of light and for understanding how dangerous sitting under an apple tree could be; a descendant of that tree remains near his room.  Also home to Stephen Hawking and 89 Nobel prizewinners (31 more than Oxford), and the Mathematical bridge.</p>
+<p>Good luck!</p>
+<p>Prizes will include signed copies of Thing Explainer and limited-edition posters and mobiles. There will also be one very special first prize.</p>
+<p>Those who&#8217;ve solved the clue but are unable to get there in person should get in touch at <a href="mailto:thingexplainer@johnmurrays.co.uk">thingexplainer@johnmurrays.co.uk</a>. For updates on the results see <a href="javascript:;">@johnmurrays</a>. The results and winners will be announced on <a href="javascript:;" target="_blank" rel="noreferrer">www.johnmurraybeagle.co.uk</a> on <span class="aBn"><span class="aQJ">7th December 2015</span></span>.</p>
+	</div><!-- .entry-content -->
+
+	<footer class="entry-footer">
+		<span class="byline"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" viewbox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"></path><path d="M0 0h24v24H0z" fill="none"></path></svg><span class="screen-reader-text">Posted by</span><span class="author vcard"><a class="url fn n" href="javascript:;">Randall</a></span></span><span class="posted-on"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 24"><defs><path id="a" d="M0 0h24v24H0V0z"></path></defs><clippath id="b"><use xlink:href="#a" overflow="visible"></use></clippath><path clip-path="url(#b)" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm4.2 14.2L11 13V7h1.5v5.2l4.5 2.7-.8 1.3z"></path></svg><a href="javascript:;" rel="bookmark"><time class="entry-date published updated" datetime="2015-11-24T15:12:54-05:00">2015-11-24</time></a></span><span class="cat-links"><svg class="svg-icon" width="16" height="16" aria-hidden="true" role="img" focusable="false" xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"></path><path d="M0 0h24v24H0z" fill="none"></path></svg><span class="screen-reader-text">Posted in</span><a href="javascript:;" rel="category tag">Uncategorized</a></span>	</footer><!-- .entry-footer -->
+</article><!-- #post-847 -->
+
+	<nav class="navigation pagination" role="navigation" aria-label="Posts">
+		<h2 class="screen-reader-text">Posts navigation</h2>
+		<div class="nav-links"><span aria-current="page" class="page-numbers current">1</span>
+<a class="page-numbers" href="javascript:;">2</a>
+<a class="page-numbers" href="javascript:;">3</a>
+<span class="page-numbers dots">&hellip;</span>
+<a class="page-numbers" href="javascript:;">14</a>
+<a class="next page-numbers" href="javascript:;"><span class="nav-next-text">Older posts</span> <svg class="svg-icon" width="22" height="22" aria-hidden="true" role="img" focusable="false" xmlns="http://www.w3.org/2000/svg" viewbox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"></path><path d="M0 0h24v24H0z" fill="none"></path></svg></a></div>
+	</nav>
+		</main><!-- .site-main -->
+	</div><!-- .content-area -->
+
+
+	</div><!-- #content -->
+
+	<footer id="colophon" class="site-footer">
+				<div class="site-info">
+										<a class="site-name" href="javascript:;" rel="home">xkcd</a><span class="comma">,</span>
+						<a href="javascript:;" rel="nofollow">Blog at WordPress.com.</a>
+								</div><!-- .site-info -->
+	</footer><!-- #colophon -->
+
+</div><!-- #page -->
+
+		<script type="text/javascript">
+		//<![CDATA[
+		var infiniteScroll = JSON.parse( decodeURIComponent( '%7B%22settings%22%3A%7B%22id%22%3A%22main%22%2C%22ajaxurl%22%3A%22https%3A%5C%2F%5C%2Fblog.xkcd.com%5C%2F%3Finfinity%3Dscrolling%22%2C%22type%22%3A%22click%22%2C%22wrapper%22%3Atrue%2C%22wrapper_class%22%3A%22infinite-wrap%22%2C%22footer%22%3A%22page%22%2C%22click_handle%22%3A%221%22%2C%22text%22%3A%22Older%20posts%22%2C%22totop%22%3A%22Scroll%20back%20to%20top%22%2C%22currentday%22%3A%2224.11.15%22%2C%22order%22%3A%22DESC%22%2C%22scripts%22%3A%5B%5D%2C%22styles%22%3A%5B%5D%2C%22google_analytics%22%3Afalse%2C%22offset%22%3A1%2C%22history%22%3A%7B%22host%22%3A%22blog.xkcd.com%22%2C%22path%22%3A%22%5C%2Fpage%5C%2F%25d%5C%2F%22%2C%22use_trailing_slashes%22%3Atrue%2C%22parameters%22%3A%22%22%7D%2C%22query_args%22%3A%7B%22error%22%3A%22%22%2C%22m%22%3A%22%22%2C%22p%22%3A0%2C%22post_parent%22%3A%22%22%2C%22subpost%22%3A%22%22%2C%22subpost_id%22%3A%22%22%2C%22attachment%22%3A%22%22%2C%22attachment_id%22%3A0%2C%22name%22%3A%22%22%2C%22pagename%22%3A%22%22%2C%22page_id%22%3A0%2C%22second%22%3A%22%22%2C%22minute%22%3A%22%22%2C%22hour%22%3A%22%22%2C%22day%22%3A0%2C%22monthnum%22%3A0%2C%22year%22%3A0%2C%22w%22%3A0%2C%22category_name%22%3A%22%22%2C%22tag%22%3A%22%22%2C%22cat%22%3A%22%22%2C%22tag_id%22%3A%22%22%2C%22author%22%3A%22%22%2C%22author_name%22%3A%22%22%2C%22feed%22%3A%22%22%2C%22tb%22%3A%22%22%2C%22paged%22%3A0%2C%22meta_key%22%3A%22%22%2C%22meta_value%22%3A%22%22%2C%22preview%22%3A%22%22%2C%22s%22%3A%22%22%2C%22sentence%22%3A%22%22%2C%22title%22%3A%22%22%2C%22fields%22%3A%22%22%2C%22menu_order%22%3A%22%22%2C%22embed%22%3A%22%22%2C%22category__in%22%3A%5B%5D%2C%22category__not_in%22%3A%5B%5D%2C%22category__and%22%3A%5B%5D%2C%22post__in%22%3A%5B%5D%2C%22post__not_in%22%3A%5B%5D%2C%22post_name__in%22%3A%5B%5D%2C%22tag__in%22%3A%5B%5D%2C%22tag__not_in%22%3A%5B%5D%2C%22tag__and%22%3A%5B%5D%2C%22tag_slug__in%22%3A%5B%5D%2C%22tag_slug__and%22%3A%5B%5D%2C%22post_parent__in%22%3A%5B%5D%2C%22post_parent__not_in%22%3A%5B%5D%2C%22author__in%22%3A%5B%5D%2C%22author__not_in%22%3A%5B%5D%2C%22lazy_load_term_meta%22%3Afalse%2C%22posts_per_page%22%3A10%2C%22ignore_sticky_posts%22%3Afalse%2C%22suppress_filters%22%3Afalse%2C%22cache_results%22%3Afalse%2C%22update_post_term_cache%22%3Atrue%2C%22update_post_meta_cache%22%3Atrue%2C%22post_type%22%3A%22%22%2C%22nopaging%22%3Afalse%2C%22comments_per_page%22%3A%2250%22%2C%22no_found_rows%22%3Afalse%2C%22order%22%3A%22DESC%22%7D%2C%22query_before%22%3A%222020-12-01%2001%3A45%3A14%22%2C%22last_post_date%22%3A%222015-11-24%2015%3A12%3A54%22%2C%22body_class%22%3A%22infinite-scroll%22%2C%22loading_text%22%3A%22Loading%20new%20page%22%2C%22stats%22%3A%22blog%3D79314890%26v%3Dwpcom%26tz%3D-5%26user_id%3D0%26subd%3Dblogdotxkcddotcom%26x_pagetype%3Dinfinite-click%22%7D%7D' ) );
+		//]]>
+		</script>
+		<!--  -->
+	<div style="display:none">
+	</div>
+
+<script>
+window.addEventListener( "load", function( event ) {
+	var link = document.createElement( "link" );
+	link.href = "https://s0.wp.com/wp-content/mu-plugins/actionbar/actionbar.css?v=20201002";
+	link.type = "text/css";
+	link.rel = "stylesheet";
+	document.head.appendChild( link );
+
+	var script = document.createElement( "script" );
+	script.src = "https://s0.wp.com/wp-content/mu-plugins/actionbar/actionbar.js?v=20201002";
+	script.defer = true;
+	document.body.appendChild( script );
+} );
+</script>
+
+	
+	<div id="carousel-reblog-box">
+		<form action="#" name="carousel-reblog">
+			<textarea id="carousel-reblog-content" name="carousel-reblog-content" placeholder="Add your thoughts here... (optional)"></textarea>
+			<label for="carousel-reblog-to-blog-id" id="carousel-reblog-lblogid">Post to</label>
+			<select name="carousel-reblog-to-blog-id" id="carousel-reblog-to-blog-id">
+						</select>
+
+			<div class="submit">
+				<span class="canceltext"><a href="javascript:;" class="cancel">Cancel</a></span>
+				<input type="submit" name="carousel-reblog-submit" class="button" id="carousel-reblog-submit" value="Reblog Post">
+				<input type="hidden" id="carousel-reblog-blog-id" value="79314890">
+				<input type="hidden" id="carousel-reblog-blog-url" value="https://blog.xkcd.com">
+				<input type="hidden" id="carousel-reblog-blog-title" value="xkcd">
+				<input type="hidden" id="carousel-reblog-post-url" value="">
+				<input type="hidden" id="carousel-reblog-post-title" value="">
+			</div>
+
+			<input type="hidden" id="_wpnonce" name="_wpnonce" value="89e0e9ba8f"><input type="hidden" name="_wp_http_referer" value="/">		</form>
+
+		<div class="arrow"></div>
+	</div>
+<link rel='stylesheet' id='all-css-0-2' href='_static/1592560282j_yes.css' type='text/css' media='all'>
+<script id='jetpack-carousel-js-extra'>
+var jetpackCarouselStrings = {"widths":[370,700,1000,1200,1400,2000],"is_logged_in":"","lang":"en","ajaxurl":"https:\/\/blog.xkcd.com\/wp-admin\/admin-ajax.php","nonce":"6982d0b2bd","display_exif":"1","display_comments":"1","display_geo":"1","single_image_gallery":"1","single_image_gallery_media_file":"","background_color":"black","comment":"Comment","post_comment":"Post Comment","write_comment":"Write a Comment...","loading_comments":"Loading Comments...","download_original":"View full size <span class=\"photo-size\">{0}<span class=\"photo-size-times\">\u00d7<\/span>{1}<\/span>","no_comment_text":"Please be sure to submit some text with your comment.","no_comment_email":"Please provide an email address to comment.","no_comment_author":"Please provide your name to comment.","comment_post_error":"Sorry, but there was an error posting your comment. Please try again later.","comment_approved":"Your comment was approved.","comment_unapproved":"Your comment is in moderation.","camera":"Camera","aperture":"Aperture","shutter_speed":"Shutter Speed","focal_length":"Focal Length","copyright":"Copyright","comment_registration":"0","require_name_email":"1","login_url":"https:\/\/blogdotxkcddotcom.wordpress.com\/wp-login.php?redirect_to=https%3A%2F%2Fblog.xkcd.com%2F2019%2F09%2F25%2Fbook-tour-wrap-up%2F","blog_id":"79314890","meta_data":["camera","aperture","shutter_speed","focal_length","copyright"],"local_comments_commenting_as":"<fieldset><label for=\"email\">Email (Required)<\/label> <input type=\"text\" name=\"email\" class=\"jp-carousel-comment-form-field jp-carousel-comment-form-text-field\" id=\"jp-carousel-comment-form-email-field\" \/><\/fieldset><fieldset><label for=\"author\">Name (Required)<\/label> <input type=\"text\" name=\"author\" class=\"jp-carousel-comment-form-field jp-carousel-comment-form-text-field\" id=\"jp-carousel-comment-form-author-field\" \/><\/fieldset><fieldset><label for=\"url\">Website<\/label> <input type=\"text\" name=\"url\" class=\"jp-carousel-comment-form-field jp-carousel-comment-form-text-field\" id=\"jp-carousel-comment-form-url-field\" \/><\/fieldset>","reblog":"Reblog","reblogged":"Reblogged","reblog_add_thoughts":"Add your thoughts here... (optional)","reblogging":"Reblogging...","post_reblog":"Post Reblog","stats_query_args":"blog=79314890&v=wpcom&tz=-5&user_id=0&subd=blogdotxkcddotcom","is_public":"1","reblog_enabled":""};
+</script>
+<script type='text/javascript' src='_static/js.js'></script>
+	<script>
+	/(trident|msie)/i.test(navigator.userAgent)&&document.getElementById&&window.addEventListener&&window.addEventListener("hashchange",function(){var t,e=location.hash.substring(1);/^[A-z0-9_-]+$/.test(e)&&(t=document.getElementById(e))&&(/^(?:a|select|input|button|textarea)$/i.test(t.tagName)||(t.tabIndex=-1),t.focus())},!1);
+	</script>
+	<script type="text/javascript">
+// <![CDATA[
+(function() {
+try{
+  if ( window.external &&'msIsSiteMode' in window.external) {
+    if (window.external.msIsSiteMode()) {
+      var jl = document.createElement('script');
+      jl.type='text/javascript';
+      jl.async=true;
+      jl.src='/wp-content/plugins/ie-sitemode/custom-jumplist.php';
+      var s = document.getElementsByTagName('script')[0];
+      s.parentNode.insertBefore(jl, s);
+    }
+  }
+}catch(e){}
+})();
+// ]]>
+</script><script type="text/javascript">
+			(function() {
+				var extend = function(out) {
+					out = out || {};
+
+					for (var i = 1; i < arguments.length; i++) {
+						if (!arguments[i])
+						continue;
+
+						for (var key in arguments[i]) {
+						if (arguments[i].hasOwnProperty(key))
+							out[key] = arguments[i][key];
+						}
+					}
+
+					return out;
+				};
+				extend( window.infiniteScroll.settings.scripts, ["jquery-core","jquery","postmessage","mobile-useragent-info","wpcom-actionbar-placeholder","devicepx","the-neverending-homepage","coblocks-lightbox","wpcom-masterbar-tracks-js","jetpack-carousel","swfobject","videopress","tiled-gallery"] );
+				extend( window.infiniteScroll.settings.styles, ["wpcom-smileys","twentynineteen-jetpack","the-neverending-homepage","wp-block-library","wp-block-library-theme","jetpack-layout-grid","jetpack-ratings","coblocks-frontend","wpcom-core-compat-playlist-styles","wpcom-bbpress2-staff-css","twentynineteen-style","twentynineteen-print-style","twentynineteen-wpcom-style","geo-location-flair","reblogging","h4-global","global-styles","jetpack-global-styles-frontend-style","jetpack-carousel","tiled-gallery"] );
+			})();
+		</script>
+				<span id="infinite-aria" aria-live="assertive"></span>
+		<script src="w.js" type="text/javascript" async="" defer=""></script>
+<script type="text/javascript">
+_tkq = window._tkq || [];
+_stq = window._stq || [];
+_tkq.push(['storeContext', {'blog_id':'79314890','blog_tz':'-5','user_lang':'en','blog_lang':'en','user_id':'0'}]);
+_stq.push(['view', {'blog':'79314890','v':'wpcom','tz':'-5','user_id':'0','subd':'blogdotxkcddotcom'}]);
+_stq.push(['extra', {'crypt':'UE40eW5QN0p8M2Y/RE1TaVhzUzFMbjdWNHpwZGhTayxPSUFCMGRVYVNrSFguN3FwSmQ5RGtNX3VQcj1yVzhiflM1THQtLGFdQ2toOXYlQjYrMC9Lc3VfMFA4MTdRbUddbVlMWms0LnN8eDdxQlFsakNVcGlmczQtMSZbTlRYJUlwZ0RFfEhjVkw9bTdCNjNGeWVHWUhSNGRkPVNaRnpBZW5pQWV5MmZ4bnQuVW04X05iS05xcG4zNG9NclVFYnprTz95bVR4cmFkeixnfi50c0RZbE5yNV16YTB6WDc5akYwWmJYfHZfc2VGUTBrKzFjME85eDNHWXhCRjQ='}]);
+_stq.push([ 'clickTrackerInit', '79314890', '0' ]);
+	</script>
+<noscript><img src="b-noscript.gif" style="height:0px;width:0px;overflow:hidden" alt=""></noscript>
+<script>
+if ( 'object' === typeof wpcom_mobile_user_agent_info ) {
+
+	wpcom_mobile_user_agent_info.init();
+	var mobileStatsQueryString = "";
+	
+	if( false !== wpcom_mobile_user_agent_info.matchedPlatformName )
+		mobileStatsQueryString += "&x_" + 'mobile_platforms' + '=' + wpcom_mobile_user_agent_info.matchedPlatformName;
+	
+	if( false !== wpcom_mobile_user_agent_info.matchedUserAgentName )
+		mobileStatsQueryString += "&x_" + 'mobile_devices' + '=' + wpcom_mobile_user_agent_info.matchedUserAgentName;
+	
+	if( wpcom_mobile_user_agent_info.isIPad() )
+		mobileStatsQueryString += "&x_" + 'ipad_views' + '=' + 'views';
+
+	if( "" != mobileStatsQueryString ) {
+		new Image().src = document.location.protocol + '//pixel.wp.com/g.gif?v=wpcom-no-pv' + mobileStatsQueryString + '&baba=' + Math.random();
+	}
+	
+}
+</script>
+</body>
+</html>
